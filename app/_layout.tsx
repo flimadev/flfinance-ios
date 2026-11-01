@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
+import { DatabaseGate } from '@/src/db/DatabaseGate';
 import { colors as themeColors, useTheme } from '@/src/theme';
 
 export {
@@ -39,7 +40,11 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <DatabaseGate>
+      <RootLayoutNav />
+    </DatabaseGate>
+  );
 }
 
 function RootLayoutNav() {
