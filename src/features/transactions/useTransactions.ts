@@ -15,6 +15,8 @@ import { getLocalDateString } from '@/src/domain/transactions';
 import { ptBR } from '@/src/i18n/pt-BR';
 import { getTransactionServices } from './transactionData';
 import type { TransactionFormInput } from './transactionFormTypes';
+import { useAppPreferences } from '@/src/preferences/AppPreferencesProvider';
+import { PaymentReminderService } from '@/src/services/PaymentReminderService';
 
 type DataState = {
   accounts: Account[];
@@ -30,6 +32,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function useTransactions() {
+  const { preferences } = useAppPreferences();
   const [data, setData] = useState<DataState>({
     accounts: [],
     categories: [],
@@ -40,33 +43,57 @@ export function useTransactions() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reminderError, setReminderError] = useState<string | null>(null);
 
-  const reload = useCallback(async (showLoading = true) => {
-    if (showLoading) {
-      setLoading(true);
+  const synchronizeReminders = useCallback(async () => {
+    if (preferences.paymentReminderDays === 0) {
+      return;
     }
 
     try {
-      const { accountService, categoryService, transactionService, tagService, attachmentService } =
-        await getTransactionServices();
-      const [accounts, categories, transactions, tags, transactionTags, attachments] =
-        await Promise.all([
-          accountService.list(),
-          categoryService.list(),
-          transactionService.list(),
-          tagService.list(),
-          tagService.listAssociations(),
-          attachmentService.listAll(),
-        ]);
-      setData({ accounts, categories, transactions, tags, transactionTags, attachments });
-      setError(null);
-    } catch (loadError) {
-      console.error('Não foi possível carregar os lançamentos.', loadError);
-      setError(getErrorMessage(loadError));
-    } finally {
-      setLoading(false);
+      await new PaymentReminderService().synchronize(preferences.paymentReminderDays);
+      setReminderError(null);
+    } catch (syncError) {
+      console.error('Não foi possível atualizar os lembretes de vencimento.', syncError);
+      setReminderError(ptBR.debts.reminderSyncError);
     }
-  }, []);
+  }, [preferences.paymentReminderDays]);
+
+  const reload = useCallback(
+    async (showLoading = true) => {
+      if (showLoading) {
+        setLoading(true);
+      }
+
+      try {
+        const {
+          accountService,
+          categoryService,
+          transactionService,
+          tagService,
+          attachmentService,
+        } = await getTransactionServices();
+        const [accounts, categories, transactions, tags, transactionTags, attachments] =
+          await Promise.all([
+            accountService.list(),
+            categoryService.list(),
+            transactionService.list(),
+            tagService.list(),
+            tagService.listAssociations(),
+            attachmentService.listAll(),
+          ]);
+        setData({ accounts, categories, transactions, tags, transactionTags, attachments });
+        setError(null);
+        await synchronizeReminders();
+      } catch (loadError) {
+        console.error('Não foi possível carregar os lançamentos.', loadError);
+        setError(getErrorMessage(loadError));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [synchronizeReminders],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -172,5 +199,16 @@ export function useTransactions() {
     [reload],
   );
 
-  return { ...data, loading, error, reload, create, update, remove, restore, saveExtras };
+  return {
+    ...data,
+    loading,
+    error,
+    reminderError,
+    reload,
+    create,
+    update,
+    remove,
+    restore,
+    saveExtras,
+  };
 }

@@ -5,6 +5,13 @@
 - A seção de dívidas é uma visão consolidada, sem criar um cadastro financeiro
   paralelo: reúne lançamentos de despesa não pagos, faturas abertas e regras
   recorrentes mensais já existentes.
+- O vencimento de lançamentos continua usando `transactions.date`, pois o modelo
+  não possui uma data de vencimento separada. Lembretes são notificações locais,
+  sem valores ou descrições financeiras no conteúdo visível da tela bloqueada.
+- A antecedência é configurável entre 1 e 30 dias; zero desativa os avisos.
+  Cada aviso é agendado às 9h no fuso local, com limite de 50 pendências para
+  respeitar os limites de notificações locais do iOS. Permissões negadas são
+  exibidas nos Ajustes, e compras no cartão continuam representadas pela fatura.
 - Compras de cartão são representadas pelo total da fatura, não novamente pelos
   lançamentos individuais, para evitar contagem duplicada. Regras recorrentes
   futuras aparecem como previsão e não entram no saldo em aberto até serem

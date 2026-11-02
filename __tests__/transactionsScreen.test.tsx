@@ -107,6 +107,7 @@ describe('TransactionsScreen', () => {
       attachments: [],
       loading: false,
       error: null,
+      reminderError: null,
       reload: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),

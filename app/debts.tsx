@@ -6,6 +6,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } fro
 
 import type { DebtItem } from '@/src/features/debts/useDebts';
 import { useDebts } from '@/src/features/debts/useDebts';
+import { DueDateCalendar } from '@/src/features/debts/DueDateCalendar';
 import { getLocalDateString } from '@/src/domain/transactions';
 import { summarizeDebtBalances } from '@/src/domain/debts';
 import { ptBR } from '@/src/i18n/pt-BR';
@@ -44,6 +45,7 @@ export default function DebtsScreen() {
     loading,
     error,
     operationError,
+    reminderError,
     reload,
     markTransactionPaid,
     payInvoice,
@@ -54,9 +56,18 @@ export default function DebtsScreen() {
   const [paymentAccountId, setPaymentAccountId] = useState('');
   const [payingInvoice, setPayingInvoice] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [direction, setDirection] = useState<'payable' | 'receivable'>('payable');
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const today = getLocalDateString(new Date());
-  const summary = summarizeDebtBalances(debts, today);
-  const monthlyEstimateCents = sumRecurringMonthly(recurringDebts);
+  const directionDebts = debts.filter((debt) => debt.direction === direction);
+  const visibleDebts = directionDebts.filter(
+    (debt) => selectedDate === null || debt.dueDate === selectedDate,
+  );
+  const directionRecurring = recurringDebts.filter((debt) => debt.direction === direction);
+  const summary = summarizeDebtBalances(directionDebts, today);
+  const monthlyEstimateCents = sumRecurringMonthly(directionRecurring);
+  const payable = direction === 'payable';
 
   function openInvoicePayment(invoice: Extract<DebtItem, { kind: 'invoice' }>) {
     setInvoiceToPay(invoice);
@@ -86,6 +97,7 @@ export default function DebtsScreen() {
 
   function renderDebtItem({ item }: { item: DebtItem }) {
     const isOverdue = item.dueDate < today;
+    const isPayable = item.direction === 'payable';
 
     return (
       <Card style={styles.debtCard}>
@@ -106,7 +118,11 @@ export default function DebtsScreen() {
             ) : null}
           </View>
           <View style={styles.debtAmount}>
-            <AmountText amountCents={-item.amountCents} tone="negative" variant="label" />
+            <AmountText
+              amountCents={isPayable ? -item.amountCents : item.amountCents}
+              tone={isPayable ? 'negative' : 'positive'}
+              variant="label"
+            />
             <Text tone={isOverdue ? 'negative' : 'secondary'} variant="caption">
               {isOverdue
                 ? ptBR.debts.overdueDate(formatDueDate(item.dueDate))
@@ -120,7 +136,7 @@ export default function DebtsScreen() {
           </Button>
         ) : (
           <Button haptic={false} onPress={() => void markAsPaid(item.id)} variant="secondary">
-            {ptBR.debts.markPaid}
+            {isPayable ? ptBR.debts.markPaid : ptBR.debts.markReceived}
           </Button>
         )}
       </Card>
@@ -131,7 +147,7 @@ export default function DebtsScreen() {
     <Screen style={styles.screen} testID="debts-screen">
       <FlashList
         contentContainerStyle={styles.listContent}
-        data={debts}
+        data={visibleDebts}
         keyExtractor={(item) => item.id}
         ListEmptyComponent={
           loading ? (
@@ -143,7 +159,11 @@ export default function DebtsScreen() {
             </View>
           ) : error ? null : (
             <EmptyState
-              description={ptBR.debts.noDebtsDescription}
+              description={
+                directionDebts.length > 0
+                  ? ptBR.debts.noFilteredDebtsDescription
+                  : ptBR.debts.noDebtsDescription
+              }
               icon={
                 <SymbolView
                   name={{ ios: 'checkmark', android: 'check', web: 'check' }}
@@ -151,50 +171,59 @@ export default function DebtsScreen() {
                   tintColor={colors.primary}
                 />
               }
-              title={ptBR.debts.noDebtsTitle}
+              title={
+                directionDebts.length > 0 ? ptBR.debts.noFilteredDebts : ptBR.debts.noDebtsTitle
+              }
             />
           )
         }
         ListFooterComponent={
           <View style={styles.recurringSection}>
-            <View style={styles.sectionHeading}>
-              <Text variant="heading">{ptBR.debts.recurring}</Text>
-              {recurringDebts.length > 0 ? (
-                <View style={styles.recurringEstimate}>
-                  <Text tone="secondary" variant="caption">
-                    {ptBR.debts.monthlyEstimate}
-                  </Text>
-                  <AmountText amountCents={monthlyEstimateCents} variant="label" />
+            {directionRecurring.length > 0 ? (
+              <>
+                <View style={styles.sectionHeading}>
+                  <Text variant="heading">{ptBR.debts.recurring}</Text>
+                  <View style={styles.recurringEstimate}>
+                    <Text tone="secondary" variant="caption">
+                      {ptBR.debts.monthlyEstimate}
+                    </Text>
+                    <AmountText
+                      amountCents={payable ? -monthlyEstimateCents : monthlyEstimateCents}
+                      tone={payable ? 'negative' : 'positive'}
+                      variant="label"
+                    />
+                  </View>
                 </View>
-              ) : null}
-            </View>
-            {error || (loading && recurringDebts.length === 0) ? null : recurringDebts.length ===
-              0 ? (
+                {directionRecurring.map((debt) => (
+                  <Card key={debt.id} style={styles.recurringCard}>
+                    <View style={styles.debtDetails}>
+                      <View style={styles.debtDescription}>
+                        <Text numberOfLines={2} variant="heading">
+                          {debt.description}
+                        </Text>
+                        <Text numberOfLines={1} tone="secondary" variant="caption">
+                          {debt.accountName} · {ptBR.debts.recurringCadence}
+                        </Text>
+                      </View>
+                      <View style={styles.debtAmount}>
+                        <AmountText
+                          amountCents={payable ? -debt.amountCents : debt.amountCents}
+                          tone={payable ? 'negative' : 'positive'}
+                          variant="label"
+                        />
+                        <Text tone="secondary" variant="caption">
+                          {ptBR.debts.dueDate(formatDueDate(debt.nextDate))}
+                        </Text>
+                      </View>
+                    </View>
+                  </Card>
+                ))}
+              </>
+            ) : error || (loading && recurringDebts.length === 0) ? null : (
               <EmptyState
                 description={ptBR.debts.noRecurringDescription}
                 title={ptBR.debts.noRecurringTitle}
               />
-            ) : (
-              recurringDebts.map((debt) => (
-                <Card key={debt.id} style={styles.recurringCard}>
-                  <View style={styles.debtDetails}>
-                    <View style={styles.debtDescription}>
-                      <Text numberOfLines={2} variant="heading">
-                        {debt.description}
-                      </Text>
-                      <Text numberOfLines={1} tone="secondary" variant="caption">
-                        {debt.accountName} · {ptBR.debts.recurringCadence}
-                      </Text>
-                    </View>
-                    <View style={styles.debtAmount}>
-                      <AmountText amountCents={-debt.amountCents} tone="negative" variant="label" />
-                      <Text tone="secondary" variant="caption">
-                        {ptBR.debts.dueDate(formatDueDate(debt.nextDate))}
-                      </Text>
-                    </View>
-                  </View>
-                </Card>
-              ))
             )}
           </View>
         }
@@ -237,38 +266,100 @@ export default function DebtsScreen() {
                 {`${ptBR.debts.paymentError} ${operationError}`}
               </Text>
             ) : null}
+            {reminderError ? (
+              <Text accessibilityRole="alert" tone="negative">
+                {reminderError}
+              </Text>
+            ) : null}
             {successMessage ? (
               <Text accessibilityLiveRegion="polite" tone="positive">
                 {successMessage}
               </Text>
             ) : null}
 
+            <View
+              accessibilityRole="tablist"
+              style={[styles.directionOptions, { backgroundColor: colors.surfaceSubtle }]}
+            >
+              {(['payable', 'receivable'] as const).map((option) => {
+                const selected = direction === option;
+                return (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    key={option}
+                    onPress={() => {
+                      setDirection(option);
+                      setSelectedDate(null);
+                    }}
+                    style={[
+                      styles.directionOption,
+                      selected ? { backgroundColor: colors.surface } : undefined,
+                    ]}
+                  >
+                    <Text tone={selected ? 'primary' : 'secondary'} variant="label">
+                      {ptBR.debts[option]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <DueDateCalendar
+              debts={directionDebts}
+              monthOffset={monthOffset}
+              onMonthOffsetChange={setMonthOffset}
+              onSelectDate={setSelectedDate}
+              selectedDate={selectedDate}
+            />
+            {selectedDate ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setSelectedDate(null)}
+                style={styles.clearDateFilter}
+              >
+                <Text tone="primary" variant="label">
+                  {ptBR.debts.clearDateFilter}: {formatDueDate(selectedDate)}
+                </Text>
+              </Pressable>
+            ) : null}
+
             <Card style={styles.summaryCard}>
               <View style={styles.summaryItem}>
                 <Text tone="secondary" variant="label">
-                  {ptBR.debts.outstanding}
+                  {payable ? ptBR.debts.outstanding : ptBR.debts.receivableOutstanding}
                 </Text>
                 <AmountText
-                  amountCents={formatExpenseCents(summary.outstandingCents)}
-                  tone="negative"
+                  amountCents={
+                    payable
+                      ? formatExpenseCents(summary.outstandingCents)
+                      : summary.outstandingCents
+                  }
+                  tone={payable ? 'negative' : 'positive'}
                   variant="title"
                 />
               </View>
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <View style={styles.summaryItem}>
                 <Text tone="secondary" variant="label">
-                  {ptBR.debts.overdue}
+                  {payable ? ptBR.debts.overdue : ptBR.debts.receivableOverdue}
                 </Text>
                 <AmountText
-                  amountCents={formatExpenseCents(summary.overdueCents)}
-                  tone="negative"
+                  amountCents={
+                    payable ? formatExpenseCents(summary.overdueCents) : summary.overdueCents
+                  }
+                  tone={payable ? 'negative' : 'positive'}
                   variant="heading"
                 />
               </View>
             </Card>
             <View style={styles.sectionHeading}>
-              <Text variant="heading">{ptBR.debts.scheduled}</Text>
-              {debts.length > 0 ? (
+              <Text variant="heading">
+                {selectedDate
+                  ? ptBR.debts.selectedDate(formatDueDate(selectedDate))
+                  : ptBR.debts.scheduled}
+              </Text>
+              {directionDebts.length > 0 ? (
                 <Text tone="secondary" variant="caption">
                   {ptBR.debts.upcoming}
                 </Text>
@@ -386,6 +477,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[4],
+  },
+  directionOptions: {
+    borderRadius: radius.pill,
+    flexDirection: 'row',
+    gap: spacing[1],
+    padding: spacing[1],
+  },
+  directionOption: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: layout.touchTarget,
+    paddingHorizontal: spacing[3],
+  },
+  clearDateFilter: {
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
+    minHeight: layout.touchTarget,
   },
   summaryItem: {
     flex: 1,

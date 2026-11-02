@@ -20,6 +20,7 @@ export type AppPreferences = {
   themeMode: ThemeMode;
   monthStartDay: number;
   biometricLock: boolean;
+  paymentReminderDays: number;
 };
 
 type AppPreferencesContextValue = {
@@ -37,12 +38,14 @@ const defaults: AppPreferences = {
   themeMode: 'system',
   monthStartDay: 1,
   biometricLock: false,
+  paymentReminderDays: 0,
 };
 const preferencesSchema = z
   .object({
     themeMode: z.enum(['system', 'light', 'dark']),
     monthStartDay: z.number().int().min(1).max(28),
     biometricLock: z.boolean(),
+    paymentReminderDays: z.number().int().min(0).max(30).default(0),
   })
   .strict();
 

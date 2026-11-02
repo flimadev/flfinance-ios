@@ -1,8 +1,10 @@
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useEffect } from 'react';
+import { Platform } from 'react-native';
+import { useEffect, useRef } from 'react';
 import 'react-native-reanimated';
 
 import { DatabaseGate } from '@/src/db/DatabaseGate';
@@ -21,6 +23,16 @@ export const unstable_settings = {
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -55,6 +67,8 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const { scheme } = useTheme();
+  const router = useRouter();
+  const handledNotificationIds = useRef(new Set<string>());
   const colors = themeColors[scheme];
   const navigationTheme = {
     ...(scheme === 'dark' ? DarkTheme : DefaultTheme),
@@ -68,6 +82,45 @@ function RootLayoutNav() {
       notification: colors.negative,
     },
   };
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
+    function openDebtsFromNotification(response: Notifications.NotificationResponse) {
+      const request = response.notification.request;
+      if (
+        response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER &&
+        request.content.data?.screen === 'debts' &&
+        !handledNotificationIds.current.has(request.identifier)
+      ) {
+        handledNotificationIds.current.add(request.identifier);
+        router.push('/debts');
+        void Notifications.clearLastNotificationResponseAsync().catch((error: unknown) => {
+          console.error('Não foi possível limpar o último destino de notificação.', error);
+        });
+      }
+    }
+
+    const subscription =
+      Notifications.addNotificationResponseReceivedListener(openDebtsFromNotification);
+    let active = true;
+    void Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (active && response) {
+          openDebtsFromNotification(response);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('Não foi possível abrir o destino do lembrete.', error);
+      });
+
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [router]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

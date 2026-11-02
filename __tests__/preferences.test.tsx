@@ -26,6 +26,7 @@ function PreferencesProbe() {
       <Text testID="ready">{String(ready)}</Text>
       <Text testID="theme">{preferences.themeMode}</Text>
       <Text testID="month-start">{String(preferences.monthStartDay)}</Text>
+      <Text testID="reminder-days">{String(preferences.paymentReminderDays)}</Text>
       <Pressable
         testID="update"
         onPress={() => {
@@ -58,6 +59,7 @@ describe('app preferences', () => {
       expect(screen.getByTestId('ready').props.children).toBe('true');
       expect(screen.getByTestId('theme').props.children).toBe('light');
       expect(screen.getByTestId('month-start').props.children).toBe('5');
+      expect(screen.getByTestId('reminder-days').props.children).toBe('0');
     });
 
     await act(async () => {
@@ -70,7 +72,12 @@ describe('app preferences', () => {
     await waitFor(() => {
       expect(SecureStore.setItemAsync).toHaveBeenLastCalledWith(
         'flfinance.preferences.v1',
-        JSON.stringify({ themeMode: 'dark', monthStartDay: 15, biometricLock: false }),
+        JSON.stringify({
+          themeMode: 'dark',
+          monthStartDay: 15,
+          biometricLock: false,
+          paymentReminderDays: 0,
+        }),
       );
       expect(screen.getByTestId('theme').props.children).toBe('dark');
       expect(screen.getByTestId('month-start').props.children).toBe('15');

@@ -11,11 +11,12 @@ import { authenticateBiometrically } from '@/src/preferences/biometricAuthentica
 import { BackupRepository } from '@/src/repositories/BackupRepository';
 import { BackupService } from '@/src/services/BackupService';
 import { ExpoAttachmentFileStore } from '@/src/services/AttachmentFileStore';
+import { PaymentReminderService } from '@/src/services/PaymentReminderService';
 import { pickBackupContents, shareTextFile } from '@/src/services/BackupFileService';
 import { layout, radius, spacing, useTheme } from '@/src/theme';
 import { Button, Card, Screen, Text } from '@/src/ui';
 
-type Operation = 'backup' | 'restore' | 'csv' | null;
+type Operation = 'backup' | 'restore' | 'csv' | 'reminders' | null;
 
 const themeOptions: { value: ThemeMode; label: string }[] = [
   { value: 'system', label: ptBR.settings.themeSystem },
@@ -45,6 +46,7 @@ export default function SettingsScreen() {
   const { preferences, updatePreferences } = useAppPreferences();
   const [operation, setOperation] = useState<Operation>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [reminderMessage, setReminderMessage] = useState<string | null>(null);
 
   async function changeBiometricLock(enabled: boolean) {
     setMessage(null);
@@ -135,6 +137,16 @@ export default function SettingsScreen() {
       }
       const service = await getBackupService();
       await service.restoreBackup(contents);
+      try {
+        await new PaymentReminderService().synchronize(preferences.paymentReminderDays);
+      } catch (syncError) {
+        console.error(
+          'O backup foi restaurado, mas os lembretes não puderam ser atualizados.',
+          syncError,
+        );
+        setMessage(ptBR.debts.reminderSyncError);
+        return;
+      }
       setMessage(ptBR.settings.restoreSuccess);
     } catch (error) {
       console.error('Não foi possível restaurar o backup.', error);
@@ -176,6 +188,49 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error('Não foi possível salvar o dia de início do mês.', error);
       setMessage(ptBR.settings.operationError);
+    }
+  }
+
+  async function updatePaymentReminderDays(paymentReminderDays: number) {
+    setMessage(null);
+    setReminderMessage(null);
+    if (Platform.OS === 'web') {
+      setMessage(ptBR.settings.remindersUnavailable);
+      return;
+    }
+
+    setOperation('reminders');
+    const previousDays = preferences.paymentReminderDays;
+    try {
+      await updatePreferences({ paymentReminderDays });
+      try {
+        await new PaymentReminderService().synchronize(
+          paymentReminderDays,
+          previousDays === 0 && paymentReminderDays > 0,
+        );
+      } catch (syncError) {
+        try {
+          await updatePreferences({ paymentReminderDays: previousDays });
+          await new PaymentReminderService().synchronize(previousDays);
+        } catch (rollbackError) {
+          console.error('Não foi possível restaurar os lembretes anteriores.', rollbackError);
+          setReminderMessage(ptBR.settings.reminderRollbackError);
+          return;
+        }
+        throw syncError;
+      }
+      setReminderMessage(ptBR.settings.remindersUpdated);
+    } catch (error) {
+      console.error('Não foi possível atualizar os lembretes de vencimento.', error);
+      setReminderMessage(
+        error instanceof Error && error.message === 'payment-reminders-permission-denied'
+          ? ptBR.settings.reminderPermissionDenied
+          : error instanceof Error && error.message === 'payment-reminders-unavailable'
+            ? ptBR.settings.remindersUnavailable
+            : ptBR.debts.reminderSyncError,
+      );
+    } finally {
+      setOperation(null);
     }
   }
 
@@ -253,6 +308,72 @@ export default function SettingsScreen() {
       </Card>
 
       <Card style={styles.section}>
+        <Text variant="heading">{ptBR.settings.paymentReminders}</Text>
+        <Text tone="secondary">{ptBR.settings.paymentRemindersDescription}</Text>
+        <View style={styles.securityRow}>
+          <View style={styles.securityText}>
+            <Text variant="label">{ptBR.settings.reminderLeadTime}</Text>
+          </View>
+          <Switch
+            accessibilityLabel={ptBR.settings.paymentReminders}
+            disabled={operation !== null || Platform.OS === 'web'}
+            onValueChange={(enabled) =>
+              void updatePaymentReminderDays(
+                enabled ? Math.max(1, preferences.paymentReminderDays) : 0,
+              )
+            }
+            value={preferences.paymentReminderDays > 0}
+          />
+        </View>
+        {preferences.paymentReminderDays > 0 ? (
+          <View style={styles.dayStepper}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={ptBR.settings.previousReminderDay}
+              disabled={operation !== null || preferences.paymentReminderDays <= 1}
+              onPress={() => void updatePaymentReminderDays(preferences.paymentReminderDays - 1)}
+              style={styles.stepButton}
+            >
+              <SymbolView
+                name={{ ios: 'minus', android: 'remove', web: 'remove' }}
+                tintColor={colors.primary}
+                size={20}
+              />
+            </Pressable>
+            <Text variant="label">
+              {ptBR.settings.reminderDays(preferences.paymentReminderDays)}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={ptBR.settings.nextReminderDay}
+              disabled={operation !== null || preferences.paymentReminderDays >= 30}
+              onPress={() => void updatePaymentReminderDays(preferences.paymentReminderDays + 1)}
+              style={styles.stepButton}
+            >
+              <SymbolView
+                name={{ ios: 'plus', android: 'add', web: 'add' }}
+                tintColor={colors.primary}
+                size={20}
+              />
+            </Pressable>
+          </View>
+        ) : null}
+        {reminderMessage ? (
+          <Text
+            accessibilityRole={
+              reminderMessage === ptBR.settings.reminderPermissionDenied ||
+              reminderMessage === ptBR.settings.reminderRollbackError
+                ? 'alert'
+                : undefined
+            }
+            tone={reminderMessage === ptBR.settings.remindersUpdated ? 'positive' : 'negative'}
+          >
+            {reminderMessage}
+          </Text>
+        ) : null}
+      </Card>
+
+      <Card style={styles.section}>
         <Text variant="heading">{ptBR.categories.title}</Text>
         <Text tone="secondary">{ptBR.settings.manageCategoriesDescription}</Text>
         <Button onPress={() => router.push('/categories')}>{ptBR.settings.manageCategories}</Button>
@@ -309,9 +430,18 @@ export default function SettingsScreen() {
         </Button>
         {message ? (
           <Text
-            accessibilityRole={message === ptBR.settings.operationError ? 'alert' : undefined}
+            accessibilityRole={
+              message === ptBR.settings.operationError ||
+              message === ptBR.settings.reminderPermissionDenied ||
+              message === ptBR.settings.reminderRollbackError ||
+              message === ptBR.debts.reminderSyncError
+                ? 'alert'
+                : undefined
+            }
             tone={
-              message === ptBR.settings.restoreSuccess || message === ptBR.settings.exportSuccess
+              message === ptBR.settings.restoreSuccess ||
+              message === ptBR.settings.exportSuccess ||
+              message === ptBR.settings.remindersUpdated
                 ? 'positive'
                 : 'negative'
             }

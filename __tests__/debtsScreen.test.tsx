@@ -42,9 +42,10 @@ jest.mock('../src/features/debts/useDebts');
 
 const mockedUseDebts = jest.mocked(useDebts);
 
-function createDebtItem(): DebtItem {
+function createDebtItem(): Extract<DebtItem, { kind: 'transaction' }> {
   return {
     kind: 'transaction',
+    direction: 'payable',
     id: 'debt-1',
     description: 'Conta de energia',
     accountName: 'Conta corrente',
@@ -55,23 +56,43 @@ function createDebtItem(): DebtItem {
   };
 }
 
+function createReceivableDebtItem(): Extract<DebtItem, { kind: 'transaction' }> {
+  return {
+    ...createDebtItem(),
+    direction: 'receivable',
+    id: 'income-1',
+    description: 'Salário',
+    amountCents: 500_000,
+  };
+}
+
 describe('debts screen', () => {
   beforeEach(() => {
     mockedUseDebts.mockReturnValue({
-      debts: [createDebtItem()],
+      debts: [createDebtItem(), createReceivableDebtItem()],
       recurringDebts: [
         {
           id: 'recurring-1',
+          direction: 'payable',
           description: 'Aluguel',
           accountName: 'Conta corrente',
           nextDate: '2099-06-10',
           amountCents: 150_000,
+        },
+        {
+          id: 'recurring-income',
+          direction: 'receivable',
+          description: 'Renda recorrente',
+          accountName: 'Conta corrente',
+          nextDate: '2099-06-15',
+          amountCents: 200_000,
         },
       ],
       paymentAccounts: [],
       loading: false,
       error: null,
       operationError: null,
+      reminderError: null,
       reload: jest.fn(),
       markTransactionPaid: jest.fn(),
       payInvoice: jest.fn(),
@@ -110,9 +131,26 @@ describe('debts screen', () => {
     await waitFor(() => expect(screen.getByText('Pagamento registrado.')).toBeTruthy());
   });
 
+  it('switches to receivables and offers the matching payment action', async () => {
+    const screen = await render(
+      <ThemePreviewProvider scheme="light">
+        <DebtsScreen />
+      </ThemePreviewProvider>,
+    );
+
+    await fireEvent.press(screen.getByRole('radio', { name: 'A receber' }));
+
+    expect(screen.getByText('Total a receber')).toBeTruthy();
+    expect(screen.getByText('Salário')).toBeTruthy();
+    expect(screen.getByText('Renda recorrente')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Marcar como recebida' })).toBeTruthy();
+    expect(screen.queryByText('Conta de energia')).toBeNull();
+  });
+
   it('asks for a payment account before paying an invoice', async () => {
     const invoice: DebtItem = {
       kind: 'invoice',
+      direction: 'payable',
       id: 'invoice-item-1',
       invoiceId: 'invoice-1',
       description: 'Fatura de junho de 2026',

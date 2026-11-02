@@ -33,6 +33,7 @@ export default function TransactionsScreen() {
     attachments,
     loading,
     error,
+    reminderError,
     reload,
     create,
     update,
@@ -471,12 +472,12 @@ export default function TransactionsScreen() {
           />
         </View>
 
-        {error || mutationError ? (
+        {error || mutationError || reminderError ? (
           <View
             accessibilityRole="alert"
             style={[styles.errorBanner, { backgroundColor: colors.negativeSubtle }]}
           >
-            <Text tone="negative">{mutationError ?? error}</Text>
+            <Text tone="negative">{mutationError ?? error ?? reminderError}</Text>
             {error ? (
               <Pressable
                 accessibilityRole="button"

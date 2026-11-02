@@ -7,10 +7,13 @@ import type { InvoiceWithTotal } from '@/src/services/InvoiceService';
 import { getLocalDateString } from '@/src/domain/transactions';
 import { ptBR } from '@/src/i18n/pt-BR';
 import { getTransactionServices } from '@/src/features/transactions/transactionData';
+import { useAppPreferences } from '@/src/preferences/AppPreferencesProvider';
+import { PaymentReminderService } from '@/src/services/PaymentReminderService';
 
 export type DebtItem =
   | {
       kind: 'transaction';
+      direction: 'payable' | 'receivable';
       id: string;
       description: string;
       accountName: string;
@@ -21,6 +24,7 @@ export type DebtItem =
     }
   | {
       kind: 'invoice';
+      direction: 'payable';
       id: string;
       invoiceId: string;
       description: string;
@@ -31,6 +35,7 @@ export type DebtItem =
 
 export type RecurringDebtItem = {
   id: string;
+  direction: 'payable' | 'receivable';
   description: string;
   accountName: string;
   nextDate: string;
@@ -52,6 +57,7 @@ function getErrorMessage(error: unknown): string {
 function toTransactionDebt(transaction: Transaction, account: Account): DebtItem {
   return {
     kind: 'transaction',
+    direction: transaction.kind === 'income' ? 'receivable' : 'payable',
     id: transaction.id,
     description: transaction.description,
     accountName: account.name,
@@ -76,6 +82,7 @@ function toInvoiceDebt(invoice: InvoiceWithTotal, account: Account): DebtItem {
 
   return {
     kind: 'invoice',
+    direction: 'payable',
     id: `invoice-${invoice.id}`,
     invoiceId: invoice.id,
     description: ptBR.cards.invoice(invoiceMonth),
@@ -86,94 +93,115 @@ function toInvoiceDebt(invoice: InvoiceWithTotal, account: Account): DebtItem {
 }
 
 export function useDebts() {
+  const { preferences } = useAppPreferences();
   const [data, setData] = useState<DebtData>(emptyDebtData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [reminderError, setReminderError] = useState<string | null>(null);
 
-  const reload = useCallback(async (showLoading = true) => {
-    if (showLoading) {
-      setLoading(true);
+  const synchronizeReminders = useCallback(async () => {
+    if (preferences.paymentReminderDays === 0) {
+      return;
     }
 
     try {
-      const { accountService, invoiceService, recurringService, transactionService } =
-        await getTransactionServices();
-      const [accounts, transactions, recurringRules] = await Promise.all([
-        accountService.list(),
-        transactionService.list(),
-        recurringService.listActiveRules(),
-      ]);
-      const accountsById = new Map(accounts.map((account) => [account.id, account]));
-      const creditCards = accounts.filter((account) => account.type === 'credit_card');
-      const invoiceRows = await Promise.all(
-        creditCards.map(async (account) => ({
-          account,
-          invoices: await invoiceService.listByAccount(account.id),
-        })),
-      );
-      const transactionDebts = transactions
-        .filter(
-          (transaction) =>
-            transaction.kind === 'expense' &&
-            !transaction.isPaid &&
-            transaction.invoiceId === null &&
-            accountsById.get(transaction.accountId)?.type !== 'credit_card',
-        )
-        .flatMap((transaction) => {
-          const account = accountsById.get(transaction.accountId);
-          return account ? [toTransactionDebt(transaction, account)] : [];
-        });
-      const invoiceDebts = invoiceRows.flatMap(({ account, invoices }) =>
-        invoices
-          .filter((invoice) => invoice.status === 'open' && invoice.totalCents > 0)
-          .map((invoice) => toInvoiceDebt(invoice, account)),
-      );
-      const today = getLocalDateString(new Date());
-      const recurringDebts = recurringRules
-        .filter((rule) => rule.kind === 'expense')
-        .flatMap((rule) => {
-          const account = accountsById.get(rule.accountId);
-          const nextDate = getNextMonthlyOccurrence(
-            rule.startDate,
-            rule.dayOfMonth,
-            today,
-            rule.endDate,
-          );
-          return account && nextDate
-            ? [
-                {
-                  id: rule.id,
-                  description: rule.description,
-                  accountName: account.name,
-                  nextDate,
-                  amountCents: rule.amountCents,
-                },
-              ]
-            : [];
-        });
-
-      setData({
-        debts: [...transactionDebts, ...invoiceDebts].sort((a, b) =>
-          a.dueDate.localeCompare(b.dueDate),
-        ),
-        recurringDebts: recurringDebts.sort((a, b) => a.nextDate.localeCompare(b.nextDate)),
-        paymentAccounts: accounts.filter(
-          (account) =>
-            account.type !== 'credit_card' &&
-            account.archivedAt === null &&
-            account.deletedAt === null,
-        ),
-      });
-      setError(null);
-      setOperationError(null);
-    } catch (loadError) {
-      console.error('Não foi possível carregar as dívidas.', loadError);
-      setError(getErrorMessage(loadError));
-    } finally {
-      setLoading(false);
+      await new PaymentReminderService().synchronize(preferences.paymentReminderDays);
+      setReminderError(null);
+    } catch (syncError) {
+      console.error('Não foi possível atualizar os lembretes de vencimento.', syncError);
+      setReminderError(ptBR.debts.reminderSyncError);
     }
-  }, []);
+  }, [preferences.paymentReminderDays]);
+
+  const reload = useCallback(
+    async (showLoading = true) => {
+      if (showLoading) {
+        setLoading(true);
+      }
+
+      try {
+        const { accountService, invoiceService, recurringService, transactionService } =
+          await getTransactionServices();
+        const [accounts, transactions, recurringRules] = await Promise.all([
+          accountService.list(),
+          transactionService.list(),
+          recurringService.listActiveRules(),
+        ]);
+        const accountsById = new Map(accounts.map((account) => [account.id, account]));
+        const creditCards = accounts.filter((account) => account.type === 'credit_card');
+        const invoiceRows = await Promise.all(
+          creditCards.map(async (account) => ({
+            account,
+            invoices: await invoiceService.listByAccount(account.id),
+          })),
+        );
+        const transactionDebts = transactions
+          .filter(
+            (transaction) =>
+              (transaction.kind === 'expense' || transaction.kind === 'income') &&
+              !transaction.isPaid &&
+              transaction.invoiceId === null &&
+              accountsById.get(transaction.accountId)?.type !== 'credit_card',
+          )
+          .flatMap((transaction) => {
+            const account = accountsById.get(transaction.accountId);
+            return account ? [toTransactionDebt(transaction, account)] : [];
+          });
+        const invoiceDebts = invoiceRows.flatMap(({ account, invoices }) =>
+          invoices
+            .filter((invoice) => invoice.status === 'open' && invoice.totalCents > 0)
+            .map((invoice) => toInvoiceDebt(invoice, account)),
+        );
+        const today = getLocalDateString(new Date());
+        const recurringDebts: RecurringDebtItem[] = recurringRules
+          .filter((rule) => rule.kind === 'expense')
+          .flatMap((rule) => {
+            const account = accountsById.get(rule.accountId);
+            const nextDate = getNextMonthlyOccurrence(
+              rule.startDate,
+              rule.dayOfMonth,
+              today,
+              rule.endDate,
+            );
+            return account && nextDate
+              ? [
+                  {
+                    id: rule.id,
+                    direction: rule.kind === 'income' ? 'receivable' : 'payable',
+                    description: rule.description,
+                    accountName: account.name,
+                    nextDate,
+                    amountCents: rule.amountCents,
+                  },
+                ]
+              : [];
+          });
+
+        setData({
+          debts: [...transactionDebts, ...invoiceDebts].sort((a, b) =>
+            a.dueDate.localeCompare(b.dueDate),
+          ),
+          recurringDebts: recurringDebts.sort((a, b) => a.nextDate.localeCompare(b.nextDate)),
+          paymentAccounts: accounts.filter(
+            (account) =>
+              account.type !== 'credit_card' &&
+              account.archivedAt === null &&
+              account.deletedAt === null,
+          ),
+        });
+        setError(null);
+        setOperationError(null);
+        await synchronizeReminders();
+      } catch (loadError) {
+        console.error('Não foi possível carregar as dívidas.', loadError);
+        setError(getErrorMessage(loadError));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [synchronizeReminders],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -220,6 +248,7 @@ export function useDebts() {
     loading,
     error,
     operationError,
+    reminderError,
     reload,
     markTransactionPaid,
     payInvoice,
