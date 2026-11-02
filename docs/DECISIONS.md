@@ -1,5 +1,17 @@
 # Decisões de implementação
 
+## Fase 7 — segurança e backup
+
+- O backup é JSON versionado e validado (`flfinance-backup`, versão 1), incluindo
+  todas as tabelas financeiras e metadados. A restauração substitui os dados
+  somente depois da validação e dentro de uma única transação SQLite.
+- Arquivos de backup têm limite de 25 MB; preferências de tema, início do mês e
+  biometria ficam no SecureStore do aparelho e não são exportadas.
+- O dia de início mensal é limitado a 1–28 para que todos os períodos tenham
+  limites válidos em qualquer mês. Dashboard e orçamentos usam o ciclo escolhido.
+- A ativação biométrica exige hardware e biometria cadastrada; Face ID no iOS
+  precisa de development build e não é validável no Expo Go.
+
 ## Fase 5 — orçamentos
 
 - Existe um orçamento por categoria de despesa e mês (`YYYY-MM`); salvar novamente

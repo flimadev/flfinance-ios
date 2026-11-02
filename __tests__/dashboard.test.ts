@@ -62,6 +62,21 @@ function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
 }
 
 describe('dashboard aggregation', () => {
+  it('uses the configured month boundary for current and previous periods', () => {
+    expect(getMonthPeriod(new Date(2026, 2, 10), 0, 15)).toEqual({
+      fromDate: '2026-02-15',
+      toDate: '2026-03-14',
+    });
+    expect(getMonthPeriod(new Date(2026, 2, 10), -1, 15)).toEqual({
+      fromDate: '2026-01-15',
+      toDate: '2026-02-14',
+    });
+    expect(getMonthPeriod(new Date(2026, 2, 20), 0, 15)).toEqual({
+      fromDate: '2026-03-15',
+      toDate: '2026-04-14',
+    });
+  });
+
   it('calculates current paid balance and period totals without counting transfers', () => {
     const summary = summarizeDashboard(
       [createAccount()],

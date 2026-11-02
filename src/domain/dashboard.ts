@@ -30,15 +30,30 @@ function addSafe(total: number, amount: number): number {
   return result;
 }
 
-export function getMonthPeriod(referenceDate: Date, monthOffset = 0): DashboardPeriod {
-  const month = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + monthOffset, 1);
-  const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const year = String(month.getFullYear()).padStart(4, '0');
-  const monthNumber = String(month.getMonth() + 1).padStart(2, '0');
-
+export function getMonthPeriod(
+  referenceDate: Date,
+  monthOffset = 0,
+  monthStartDay = 1,
+): DashboardPeriod {
+  if (!Number.isInteger(monthStartDay) || monthStartDay < 1 || monthStartDay > 28) {
+    throw new RangeError('O dia de início do mês deve estar entre 1 e 28.');
+  }
+  const anchor = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
+  if (referenceDate.getDate() < monthStartDay) {
+    anchor.setMonth(anchor.getMonth() - 1);
+  }
+  anchor.setMonth(anchor.getMonth() + monthOffset);
+  const start = new Date(anchor.getFullYear(), anchor.getMonth(), monthStartDay);
+  const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, monthStartDay - 1);
+  const formatLocalDate = (date: Date) => {
+    const year = String(date.getFullYear()).padStart(4, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
   return {
-    fromDate: `${year}-${monthNumber}-01`,
-    toDate: `${year}-${monthNumber}-${String(lastDay).padStart(2, '0')}`,
+    fromDate: formatLocalDate(start),
+    toDate: formatLocalDate(end),
   };
 }
 

@@ -4,6 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { Platform } from 'react-native';
 
 import type { Budget, Category, Transaction } from '@/src/db/schema';
+import { getMonthPeriod } from '@/src/domain/dashboard';
 import type { CreateBudgetInput } from '@/src/domain/financeSchemas';
 import { ptBR } from '@/src/i18n/pt-BR';
 import { getTransactionServices } from '@/src/features/transactions/transactionData';
@@ -16,20 +17,16 @@ type BudgetData = {
 
 const emptyData: BudgetData = { budgets: [], categories: [], transactions: [] };
 
-function getMonthBounds(month: string) {
+function getMonthBounds(month: string, monthStartDay: number) {
   const [year, monthNumber] = month.split('-').map(Number);
-  const lastDay = new Date(year, monthNumber, 0).getDate();
-  return {
-    fromDate: `${month}-01`,
-    toDate: `${month}-${String(lastDay).padStart(2, '0')}`,
-  };
+  return getMonthPeriod(new Date(year, monthNumber - 1, monthStartDay), 0, monthStartDay);
 }
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : ptBR.errors.unexpected;
 }
 
-export function useBudgets(month: string) {
+export function useBudgets(month: string, monthStartDay = 1) {
   const [data, setData] = useState<BudgetData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +41,7 @@ export function useBudgets(month: string) {
 
       try {
         const services = await getTransactionServices();
-        const bounds = getMonthBounds(month);
+        const bounds = getMonthBounds(month, monthStartDay);
         const [budgets, categories, transactions] = await Promise.all([
           services.budgetService.listByMonth(month),
           services.categoryService.list(),
@@ -65,7 +62,7 @@ export function useBudgets(month: string) {
         }
       }
     },
-    [month],
+    [month, monthStartDay],
   );
 
   useFocusEffect(

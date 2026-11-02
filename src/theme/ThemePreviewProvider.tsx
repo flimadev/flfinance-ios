@@ -1,6 +1,6 @@
 import { createContext, useContext, type PropsWithChildren } from 'react';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { usePreferencesColorScheme } from '@/src/preferences/AppPreferencesProvider';
 
 import type { AppColorScheme } from './tokens';
 
@@ -15,7 +15,7 @@ export function ThemePreviewProvider({
 
 export function useAppColorScheme(): AppColorScheme {
   const override = useContext(ThemeOverrideContext);
-  const systemScheme = useColorScheme();
+  const systemScheme = usePreferencesColorScheme();
 
   return override ?? systemScheme;
 }

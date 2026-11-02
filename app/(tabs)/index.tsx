@@ -22,6 +22,7 @@ import { useDashboard } from '@/src/features/dashboard/useDashboard';
 import { getMonthPeriod, summarizeDashboard, type DashboardPeriod } from '@/src/domain/dashboard';
 import type { Account, Category, Transaction } from '@/src/db/schema';
 import { ptBR } from '@/src/i18n/pt-BR';
+import { useAppPreferences } from '@/src/preferences/AppPreferencesProvider';
 import { layout, radius, spacing, typography, useTheme } from '@/src/theme';
 import { AmountText, Button, Card, Screen, Text, formatCurrencyCents } from '@/src/ui';
 
@@ -104,10 +105,20 @@ function getRangeLabel(range: DashboardPeriod): string {
 
 export default function HomeScreen() {
   const { colors } = useTheme();
+  const { preferences } = useAppPreferences();
   const { accounts, categories, transactions, loading, error, reload } = useDashboard();
   const [periodMode, setPeriodMode] = useState<PeriodMode>('current');
-  const [period, setPeriod] = useState<DashboardPeriod>(() => getMonthPeriod(new Date()));
+  const [customPeriod, setCustomPeriod] = useState<DashboardPeriod>(() =>
+    getMonthPeriod(new Date()),
+  );
   const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const period = useMemo(
+    () =>
+      periodMode === 'custom'
+        ? customPeriod
+        : getMonthPeriod(new Date(), periodMode === 'current' ? 0 : -1, preferences.monthStartDay),
+    [customPeriod, periodMode, preferences.monthStartDay],
+  );
 
   const summary = useMemo(
     () => summarizeDashboard(accounts, categories, transactions, period, getLocalToday()),
@@ -116,11 +127,10 @@ export default function HomeScreen() {
 
   function choosePreset(mode: Exclude<PeriodMode, 'custom'>) {
     setPeriodMode(mode);
-    setPeriod(getMonthPeriod(new Date(), mode === 'current' ? 0 : -1));
   }
 
   function applyCustomPeriod(range: DashboardPeriod) {
-    setPeriod(range);
+    setCustomPeriod(range);
     setPeriodMode('custom');
     setDatePickerVisible(false);
   }

@@ -42,6 +42,12 @@
           "backgroundColor": "#ffffff"
         }
       ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Permita o Face ID para proteger seus dados financeiros."
+        }
+      ],
       "expo-sqlite",
       "expo-secure-store",
       "expo-sharing"

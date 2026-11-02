@@ -6,6 +6,8 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { DatabaseGate } from '@/src/db/DatabaseGate';
+import { AppLockGate } from '@/src/preferences/AppLockGate';
+import { AppPreferencesProvider } from '@/src/preferences/AppPreferencesProvider';
 import { colors as themeColors, useTheme } from '@/src/theme';
 
 export {
@@ -41,9 +43,13 @@ export default function RootLayout() {
   }
 
   return (
-    <DatabaseGate>
-      <RootLayoutNav />
-    </DatabaseGate>
+    <AppPreferencesProvider>
+      <DatabaseGate>
+        <AppLockGate>
+          <RootLayoutNav />
+        </AppLockGate>
+      </DatabaseGate>
+    </AppPreferencesProvider>
   );
 }
 

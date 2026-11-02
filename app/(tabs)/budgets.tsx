@@ -6,16 +6,14 @@ import { BudgetEditorSheet } from '@/src/features/budgets/BudgetEditorSheet';
 import { BudgetProgressRow } from '@/src/features/budgets/BudgetProgressRow';
 import { useBudgets } from '@/src/features/budgets/useBudgets';
 import { summarizeBudgets, type BudgetSummaryRow } from '@/src/domain/budgets';
-import { getLocalDateString } from '@/src/domain/transactions';
+import { getMonthPeriod } from '@/src/domain/dashboard';
 import { ptBR } from '@/src/i18n/pt-BR';
+import { useAppPreferences } from '@/src/preferences/AppPreferencesProvider';
 import { layout, radius, spacing, useTheme } from '@/src/theme';
 import { Button, EmptyState, Screen, Text } from '@/src/ui';
 
-function getMonthFromOffset(offset: number): string {
-  const date = new Date();
-  date.setDate(1);
-  date.setMonth(date.getMonth() + offset);
-  return getLocalDateString(date).slice(0, 7);
+function getMonthFromOffset(offset: number, monthStartDay: number): string {
+  return getMonthPeriod(new Date(), offset, monthStartDay).fromDate.slice(0, 7);
 }
 
 function formatMonth(month: string): string {
@@ -27,12 +25,15 @@ function formatMonth(month: string): string {
 
 export default function BudgetsScreen() {
   const { colors } = useTheme();
+  const { preferences } = useAppPreferences();
   const [monthOffset, setMonthOffset] = useState(0);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
-  const month = getMonthFromOffset(monthOffset);
-  const { budgets, categories, transactions, loading, error, reload, saveBudget } =
-    useBudgets(month);
+  const month = getMonthFromOffset(monthOffset, preferences.monthStartDay);
+  const { budgets, categories, transactions, loading, error, reload, saveBudget } = useBudgets(
+    month,
+    preferences.monthStartDay,
+  );
 
   const rows = useMemo(
     () => summarizeBudgets(categories, budgets, transactions),

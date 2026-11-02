@@ -2,6 +2,7 @@ import { render } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 
 import HomeScreen from '../app/(tabs)/index';
+import { AppPreferencesProvider } from '../src/preferences/AppPreferencesProvider';
 
 jest.mock('react-native-reanimated', () => ({
   __esModule: true,
@@ -19,6 +20,11 @@ jest.mock('@shopify/react-native-skia', () => ({
   Path: 'Path',
   Skia: { PathBuilder: { Make: jest.fn() } },
 }));
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn().mockResolvedValue(null),
+  setItemAsync: jest.fn().mockResolvedValue(undefined),
+  deleteItemAsync: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: ReactNode }) => children,
 }));
@@ -35,7 +41,11 @@ jest.mock('../src/features/dashboard/useDashboard', () => ({
 
 describe('HomeScreen', () => {
   it('renders the dashboard with its period and empty-state sections', async () => {
-    const screen = await render(<HomeScreen />);
+    const screen = await render(
+      <AppPreferencesProvider>
+        <HomeScreen />
+      </AppPreferencesProvider>,
+    );
     expect(screen.getByTestId('dashboard-screen')).toBeTruthy();
     expect(screen.getByText('Saldo total')).toBeTruthy();
     expect(screen.getByText('Gastos por categoria')).toBeTruthy();
