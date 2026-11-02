@@ -8,16 +8,28 @@ const iconSchema = z.string().trim().min(1).max(80);
 const idSchema = z.string().trim().min(1).max(80);
 const moneySchema = z.number().int().safe();
 
-export const createAccountSchema = z.object({
+const accountFieldsSchema = z.object({
   name: nameSchema,
   type: z.enum(accountTypes),
   initialBalanceCents: moneySchema,
   color: colorSchema,
   icon: iconSchema,
   currency: z.literal('BRL').default('BRL'),
+  closingDay: z.number().int().min(1).max(31).nullable().optional(),
+  dueDay: z.number().int().min(1).max(31).nullable().optional(),
 });
 
-export const updateAccountSchema = createAccountSchema
+export const createAccountSchema = accountFieldsSchema.superRefine((account, context) => {
+  if (account.type === 'credit_card' && (account.closingDay == null || account.dueDay == null)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['closingDay'],
+      message: 'Cartões de crédito precisam de dia de fechamento e vencimento.',
+    });
+  }
+});
+
+export const updateAccountSchema = accountFieldsSchema
   .partial()
   .refine((value) => Object.keys(value).length > 0);
 
@@ -132,6 +144,39 @@ export const createBudgetSchema = z.object({
   amountCents: moneySchema.positive(),
 });
 
+const dateSchema = localDateSchema;
+const recurrenceKindSchema = z.enum(['expense', 'income']);
+const frequencySchema = z.literal('monthly');
+
+export const createRecurringRuleSchema = z
+  .object({
+    accountId: idSchema,
+    categoryId: idSchema.nullable().optional(),
+    kind: recurrenceKindSchema,
+    amountCents: moneySchema.positive(),
+    description: z.string().trim().min(1).max(120),
+    paymentMethod: z.enum(paymentMethods).nullable().optional(),
+    startDate: dateSchema,
+    endDate: dateSchema.nullable().optional(),
+    frequency: frequencySchema.default('monthly'),
+  })
+  .superRefine((rule, context) => {
+    if (rule.endDate && rule.endDate < rule.startDate) {
+      context.addIssue({
+        code: 'custom',
+        path: ['endDate'],
+        message: 'A data final da recorrência deve ser posterior à data inicial.',
+      });
+    }
+    if (rule.paymentMethod === 'transfer') {
+      context.addIssue({
+        code: 'custom',
+        path: ['paymentMethod'],
+        message: 'Transferências não podem ser recorrentes nesta fase.',
+      });
+    }
+  });
+
 export type CreateAccountInput = z.input<typeof createAccountSchema>;
 export type UpdateAccountInput = z.input<typeof updateAccountSchema>;
 export type CreateCategoryInput = z.input<typeof createCategorySchema>;
@@ -140,3 +185,4 @@ export type CreateTransactionInput = z.input<typeof createTransactionSchema>;
 export type UpdateTransactionInput = z.input<typeof updateTransactionSchema>;
 export type TransactionFilters = z.input<typeof transactionFiltersSchema>;
 export type CreateBudgetInput = z.input<typeof createBudgetSchema>;
+export type CreateRecurringRuleInput = z.input<typeof createRecurringRuleSchema>;

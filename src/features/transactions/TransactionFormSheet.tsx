@@ -17,13 +17,14 @@ import { getLocalDateString, parseCurrencyDigitsToCents } from '@/src/domain/tra
 import { ptBR } from '@/src/i18n/pt-BR';
 import { layout, radius, spacing, typography, useTheme } from '@/src/theme';
 import { AmountText, Button, Text } from '@/src/ui';
+import type { TransactionFormInput } from './transactionFormTypes';
 
 type TransactionFormSheetProps = {
   transaction?: Transaction | null;
   accounts: Account[];
   categories: Category[];
   onClose: () => void;
-  onSave: (input: CreateTransactionInput) => Promise<void>;
+  onSave: (input: TransactionFormInput) => Promise<unknown>;
 };
 
 type TransactionKind = CreateTransactionInput['kind'];
@@ -76,6 +77,8 @@ export function TransactionFormSheet({
       : 'pix',
   );
   const [isPaid, setIsPaid] = useState(() => transaction?.isPaid ?? true);
+  const [installmentCount, setInstallmentCount] = useState('1');
+  const [recurring, setRecurring] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,6 +88,11 @@ export function TransactionFormSheet({
       category.kind === kind && category.archivedAt === null && category.deletedAt === null,
   );
   const destinationAccounts = availableAccounts.filter((account) => account.id !== accountId);
+  const selectedAccount = availableAccounts.find((account) => account.id === accountId);
+  const isCreditCard = selectedAccount?.type === 'credit_card';
+  const parsedInstallmentCount = /^\d{1,3}$/.test(installmentCount)
+    ? Number(installmentCount)
+    : Number.NaN;
 
   function appendDigit(digit: string) {
     setAmountDigits((current) => {
@@ -109,6 +117,19 @@ export function TransactionFormSheet({
       setError(ptBR.errors.invalidTransfer);
       return;
     }
+    if (isCreditCard && kind !== 'expense') {
+      setError(ptBR.transactions.creditAccountWarning);
+      return;
+    }
+    if (
+      isCreditCard &&
+      (!Number.isInteger(parsedInstallmentCount) ||
+        parsedInstallmentCount < 1 ||
+        parsedInstallmentCount > 120)
+    ) {
+      setError(ptBR.transactions.installmentsValidation);
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -120,9 +141,13 @@ export function TransactionFormSheet({
         amountCents,
         date,
         description,
-        paymentMethod: kind === 'transfer' ? 'transfer' : paymentMethod,
+        paymentMethod: kind === 'transfer' ? 'transfer' : isCreditCard ? 'credit' : paymentMethod,
         transferAccountId: kind === 'transfer' ? transferAccountId : null,
-        isPaid,
+        isPaid: isCreditCard ? false : isPaid,
+        ...(!transaction && isCreditCard ? { installmentCount: parsedInstallmentCount } : {}),
+        ...(!transaction && !isCreditCard && kind !== 'transfer' && recurring
+          ? { recurring: true }
+          : {}),
       });
       onClose();
     } catch (saveError) {
@@ -168,8 +193,15 @@ export function TransactionFormSheet({
                   onPress={() => {
                     setKind(item.value);
                     setCategoryId('');
+                    setRecurring(false);
                     if (item.value !== 'transfer') {
                       setTransferAccountId('');
+                    }
+                    if (item.value !== 'expense' && isCreditCard) {
+                      setAccountId(
+                        availableAccounts.find((account) => account.type !== 'credit_card')?.id ??
+                          '',
+                      );
                     }
                   }}
                   selected={kind === item.value}
@@ -230,7 +262,18 @@ export function TransactionFormSheet({
                 label: account.name,
               }))}
               selectedId={accountId}
-              onSelect={setAccountId}
+              onSelect={(value) => {
+                const nextAccount = availableAccounts.find((account) => account.id === value);
+                setAccountId(value);
+                if (nextAccount?.type === 'credit_card') {
+                  setKind('expense');
+                  setPaymentMethod('credit');
+                  setIsPaid(false);
+                  setRecurring(false);
+                } else if (paymentMethod === 'credit') {
+                  setPaymentMethod('pix');
+                }
+              }}
             />
 
             {kind === 'transfer' ? (
@@ -257,31 +300,65 @@ export function TransactionFormSheet({
                   selectedId={categoryId}
                   onSelect={setCategoryId}
                 />
-                <ChoiceGroup
-                  label={ptBR.transactions.paymentMethod}
-                  options={paymentMethods.map((method) => ({
-                    id: method.value,
-                    label: method.label,
-                  }))}
-                  selectedId={paymentMethod}
-                  onSelect={(value) => {
-                    if (isPaymentMethod(value)) {
-                      setPaymentMethod(value);
-                    }
-                  }}
-                />
+                {!isCreditCard ? (
+                  <ChoiceGroup
+                    label={ptBR.transactions.paymentMethod}
+                    options={paymentMethods
+                      .filter((method) => method.value !== 'credit')
+                      .map((method) => ({
+                        id: method.value,
+                        label: method.label,
+                      }))}
+                    selectedId={paymentMethod}
+                    onSelect={(value) => {
+                      if (isPaymentMethod(value)) {
+                        setPaymentMethod(value);
+                      }
+                    }}
+                  />
+                ) : null}
+                {!transaction && isCreditCard ? (
+                  <FormField
+                    accessibilityLabel={ptBR.transactions.installments}
+                    keyboardType="number-pad"
+                    label={ptBR.transactions.installments}
+                    maxLength={3}
+                    onChangeText={setInstallmentCount}
+                    value={installmentCount}
+                  />
+                ) : null}
+                {!transaction && !isCreditCard ? (
+                  <View style={styles.group}>
+                    <ChoiceGroup
+                      label={ptBR.transactions.monthlyRecurrence}
+                      options={[
+                        { id: 'no', label: ptBR.transactions.noRecurrence },
+                        { id: 'yes', label: ptBR.transactions.monthlyRecurrence },
+                      ]}
+                      selectedId={recurring ? 'yes' : 'no'}
+                      onSelect={(value) => setRecurring(value === 'yes')}
+                    />
+                    {recurring ? (
+                      <Text tone="secondary" variant="caption">
+                        {ptBR.transactions.repeatHint}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
               </>
             )}
 
-            <ChoiceGroup
-              label={ptBR.transactions.paid}
-              options={[
-                { id: 'paid', label: ptBR.transactions.paid },
-                { id: 'pending', label: ptBR.transactions.pending },
-              ]}
-              selectedId={isPaid ? 'paid' : 'pending'}
-              onSelect={(value) => setIsPaid(value === 'paid')}
-            />
+            {!isCreditCard ? (
+              <ChoiceGroup
+                label={ptBR.transactions.paid}
+                options={[
+                  { id: 'paid', label: ptBR.transactions.paid },
+                  { id: 'pending', label: ptBR.transactions.pending },
+                ]}
+                selectedId={isPaid ? 'paid' : 'pending'}
+                onSelect={(value) => setIsPaid(value === 'paid')}
+              />
+            ) : null}
 
             {error ? (
               <Text accessibilityRole="alert" tone="negative">

@@ -42,6 +42,7 @@ export class AccountService {
     if (!current || current.deletedAt !== null) {
       throw new NotFoundError();
     }
+    parseInput(createAccountSchema, { ...current, ...values });
 
     const updated = await this.repository.update(id, {
       ...values,

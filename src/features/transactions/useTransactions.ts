@@ -2,9 +2,11 @@ import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
 import type { Account, Category, Transaction } from '@/src/db/schema';
-import type { CreateTransactionInput, UpdateTransactionInput } from '@/src/domain/financeSchemas';
+import type { UpdateTransactionInput } from '@/src/domain/financeSchemas';
+import { getLocalDateString } from '@/src/domain/transactions';
 import { ptBR } from '@/src/i18n/pt-BR';
 import { getTransactionServices } from './transactionData';
+import type { TransactionFormInput } from './transactionFormTypes';
 
 type DataState = {
   accounts: Account[];
@@ -55,9 +57,38 @@ export function useTransactions() {
   );
 
   const create = useCallback(
-    async (input: CreateTransactionInput) => {
-      const { transactionService } = await getTransactionServices();
-      const transaction = await transactionService.create(input);
+    async (input: TransactionFormInput) => {
+      const { installmentCount, recurring, ...transactionInput } = input;
+      const services = await getTransactionServices();
+      let transaction: Transaction | null;
+      if (installmentCount !== undefined) {
+        const created = await services.cardService.createInstallmentPurchase({
+          accountId: transactionInput.accountId,
+          categoryId: transactionInput.categoryId ?? null,
+          amountCents: transactionInput.amountCents,
+          date: transactionInput.date,
+          description: transactionInput.description,
+          installmentCount: installmentCount ?? 1,
+        });
+        transaction = created[0] ?? null;
+      } else if (recurring && transactionInput.kind !== 'transfer') {
+        await services.recurringService.createRule({
+          accountId: transactionInput.accountId,
+          categoryId: transactionInput.categoryId ?? null,
+          kind: transactionInput.kind,
+          amountCents: transactionInput.amountCents,
+          description: transactionInput.description,
+          paymentMethod: transactionInput.paymentMethod,
+          startDate: transactionInput.date,
+          frequency: 'monthly',
+        });
+        await services.recurringService.generateDue(getLocalDateString(new Date()));
+        transaction = null;
+      } else if (recurring) {
+        throw new Error('Transferências não podem ser recorrentes.');
+      } else {
+        transaction = await services.transactionService.create(transactionInput);
+      }
       await reload(false);
       return transaction;
     },

@@ -57,6 +57,19 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="cards"
+        options={{
+          title: 'Cartões',
+          tabBarIcon: ({ color }) => (
+            <SymbolView
+              name={{ ios: 'creditcard.fill', android: 'credit_card', web: 'credit_card' }}
+              tintColor={color}
+              size={24}
+            />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

@@ -7,6 +7,8 @@ function createAccount(overrides: Partial<Account> = {}): Account {
     name: 'Conta principal',
     type: 'checking',
     initialBalanceCents: 10_000,
+    closingDay: null,
+    dueDay: null,
     color: '#147A58',
     icon: 'building.columns.fill',
     currency: 'BRL',

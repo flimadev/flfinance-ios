@@ -15,6 +15,13 @@
       "when": 1793587114213,
       "tag": "0001_deep_punisher",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793587851458,
+      "tag": "0002_cards_recurring_safe",
+      "breakpoints": true
     }
   ]
 }

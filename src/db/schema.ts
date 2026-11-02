@@ -22,6 +22,8 @@ export const accounts = sqliteTable(
     name: text('name').notNull(),
     type: text('type', { enum: accountTypes }).notNull(),
     initialBalanceCents: integer('initial_balance_cents').notNull().default(0),
+    closingDay: integer('closing_day'),
+    dueDay: integer('due_day'),
     color: text('color').notNull(),
     icon: text('icon').notNull(),
     currency: text('currency').notNull().default('BRL'),
@@ -34,6 +36,14 @@ export const accounts = sqliteTable(
     check(
       'accounts_type_check',
       sql`${table.type} in ('checking', 'savings', 'cash', 'credit_card', 'investment')`,
+    ),
+    check(
+      'accounts_closing_day_check',
+      sql`${table.closingDay} is null or ${table.closingDay} between 1 and 31`,
+    ),
+    check(
+      'accounts_due_day_check',
+      sql`${table.dueDay} is null or ${table.dueDay} between 1 and 31`,
     ),
   ],
 );
@@ -104,6 +114,69 @@ export const transactions = sqliteTable(
     index('transactions_account_date_idx').on(table.accountId, table.date),
     index('transactions_category_date_idx').on(table.categoryId, table.date),
     index('transactions_invoice_idx').on(table.invoiceId),
+    uniqueIndex('transactions_recurring_date_unique').on(table.recurringId, table.date),
+  ],
+);
+
+export const invoices = sqliteTable(
+  'invoices',
+  {
+    id: text('id').primaryKey().notNull(),
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    billingMonth: text('billing_month').notNull(),
+    dueDate: text('due_date').notNull(),
+    status: text('status', { enum: ['open', 'paid'] })
+      .notNull()
+      .default('open'),
+    paidAt: integer('paid_at'),
+    paymentAccountId: text('payment_account_id').references(() => accounts.id, {
+      onDelete: 'restrict',
+    }),
+    paymentTransactionId: text('payment_transaction_id'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    check(
+      'invoices_month_check',
+      sql`${table.billingMonth} glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]'`,
+    ),
+    check('invoices_status_check', sql`${table.status} in ('open', 'paid')`),
+    uniqueIndex('invoices_account_month_unique').on(table.accountId, table.billingMonth),
+    index('invoices_due_date_idx').on(table.dueDate),
+  ],
+);
+
+export const recurringRules = sqliteTable(
+  'recurring_rules',
+  {
+    id: text('id').primaryKey().notNull(),
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    categoryId: text('category_id').references(() => categories.id, { onDelete: 'set null' }),
+    kind: text('kind', { enum: ['expense', 'income'] }).notNull(),
+    amountCents: integer('amount_cents').notNull(),
+    description: text('description').notNull(),
+    paymentMethod: text('payment_method', { enum: paymentMethods }),
+    startDate: text('start_date').notNull(),
+    endDate: text('end_date'),
+    dayOfMonth: integer('day_of_month').notNull(),
+    isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+    lastGeneratedDate: text('last_generated_date'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    check('recurring_rules_positive_amount_check', sql`${table.amountCents} > 0`),
+    check('recurring_rules_day_check', sql`${table.dayOfMonth} between 1 and 31`),
+    check(
+      'recurring_rules_dates_check',
+      sql`${table.endDate} is null or ${table.endDate} >= ${table.startDate}`,
+    ),
+    index('recurring_rules_active_idx').on(table.isActive),
   ],
 );
 
@@ -169,19 +242,39 @@ export const budgetRelations = relations(budgets, ({ one }) => ({
   }),
 }));
 
+export const invoiceRelations = relations(invoices, ({ one }) => ({
+  account: one(accounts, { fields: [invoices.accountId], references: [accounts.id] }),
+  paymentAccount: one(accounts, {
+    fields: [invoices.paymentAccountId],
+    references: [accounts.id],
+    relationName: 'invoice_payment_account',
+  }),
+}));
+
+export const recurringRuleRelations = relations(recurringRules, ({ one }) => ({
+  account: one(accounts, { fields: [recurringRules.accountId], references: [accounts.id] }),
+  category: one(categories, { fields: [recurringRules.categoryId], references: [categories.id] }),
+}));
+
 export const schema = {
   accounts,
   categories,
   transactions,
+  invoices,
+  recurringRules,
   budgets,
   appMetadata,
   accountRelations,
   categoryRelations,
   transactionRelations,
   budgetRelations,
+  invoiceRelations,
+  recurringRuleRelations,
 };
 
 export type Account = typeof accounts.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
 export type Budget = typeof budgets.$inferSelect;
+export type Invoice = typeof invoices.$inferSelect;
+export type RecurringRule = typeof recurringRules.$inferSelect;
