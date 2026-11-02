@@ -102,6 +102,9 @@ describe('TransactionsScreen', () => {
       accounts: [account],
       categories: [category],
       transactions: [transaction],
+      tags: [],
+      transactionTags: [],
+      attachments: [],
       loading: false,
       error: null,
       reload: jest.fn(),
@@ -109,6 +112,7 @@ describe('TransactionsScreen', () => {
       update: jest.fn(),
       remove: jest.fn(),
       restore: jest.fn(),
+      saveExtras: jest.fn(async () => {}),
     });
   });
 

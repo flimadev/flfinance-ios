@@ -9,6 +9,11 @@ import { BudgetService } from '@/src/services/BudgetService';
 import { CardService } from '@/src/services/CardService';
 import { CategoryService } from '@/src/services/CategoryService';
 import { TransactionService } from '@/src/services/TransactionService';
+import { TagRepository } from '@/src/repositories/TagRepository';
+import { AttachmentRepository } from '@/src/repositories/AttachmentRepository';
+import { TagService } from '@/src/services/TagService';
+import { AttachmentService } from '@/src/services/AttachmentService';
+import { ExpoAttachmentFileStore } from '@/src/services/AttachmentFileStore';
 import { InvoiceService } from '@/src/services/InvoiceService';
 import { RecurringService } from '@/src/services/RecurringService';
 import { getDatabase } from '@/src/db/client';
@@ -21,6 +26,9 @@ export async function getTransactionServices() {
   const invoices = new InvoiceRepository(db);
   const recurringRules = new RecurringRuleRepository(db);
   const transactions = new TransactionRepository(db);
+  const tags = new TagRepository(db);
+  const attachments = new AttachmentRepository(db);
+  const attachmentFiles = new ExpoAttachmentFileStore();
 
   return {
     accountService: new AccountService(accounts),
@@ -30,5 +38,8 @@ export async function getTransactionServices() {
     invoiceService: new InvoiceService(invoices, accounts, transactions),
     recurringService: new RecurringService(recurringRules, accounts, categories),
     transactionService: new TransactionService(transactions, accounts, categories),
+    tagService: new TagService(tags),
+    attachmentService: new AttachmentService(attachments, attachmentFiles),
+    attachmentFiles,
   };
 }

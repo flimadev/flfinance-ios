@@ -2,15 +2,19 @@ import { z } from 'zod';
 
 import {
   accountTypes,
+  attachmentMimeTypes,
   categoryKinds,
   paymentMethods,
   transactionKinds,
   type Account,
+  type Attachment,
   type Budget,
   type Category,
   type Invoice,
   type RecurringRule,
+  type Tag,
   type Transaction,
+  type TransactionTag,
 } from '@/src/db/schema';
 
 const id = z.string().min(1).max(100);
@@ -130,7 +134,7 @@ const budgetSchema = z
   })
   .strict();
 
-const backupDataSchema = z
+const backupDataV1Schema = z
   .object({
     accounts: z.array(accountSchema).max(100_000),
     categories: z.array(categorySchema).max(100_000),
@@ -142,10 +146,56 @@ const backupDataSchema = z
   })
   .strict();
 
-export const backupSchema = z
+const tagSchema = z
+  .object({
+    id,
+    name: z.string().min(1).max(80),
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  })
+  .strict();
+
+const transactionTagSchema = z.object({ transactionId: id, tagId: id }).strict();
+
+const attachmentSchema = z
+  .object({
+    id,
+    transactionId: id,
+    uri: z.string().min(1).max(2048),
+    mimeType: z.enum(attachmentMimeTypes),
+    fileName: z.string().max(255).nullable(),
+    sizeBytes: z
+      .number()
+      .int()
+      .positive()
+      .max(5 * 1024 * 1024),
+    createdAt: timestamp,
+    contentBase64: z.string().min(1).max(7_000_000),
+  })
+  .strict();
+
+const backupDataSchema = backupDataV1Schema
+  .extend({
+    tags: z.array(tagSchema).max(10_000),
+    transactionTags: z.array(transactionTagSchema).max(500_000),
+    attachments: z.array(attachmentSchema).max(10_000),
+  })
+  .strict();
+
+const legacyBackupSchema = z
   .object({
     format: z.literal('flfinance-backup'),
     version: z.literal(1),
+    exportedAt: timestamp,
+    data: backupDataV1Schema,
+  })
+  .strict();
+
+export const backupSchema = z
+  .object({
+    format: z.literal('flfinance-backup'),
+    version: z.literal(2),
     exportedAt: timestamp,
     data: backupDataSchema,
   })
@@ -158,7 +208,10 @@ export type BackupData = {
   invoices: Invoice[];
   recurringRules: RecurringRule[];
   budgets: Budget[];
+  tags: Tag[];
+  transactionTags: TransactionTag[];
   appMetadata: { key: string; value: string }[];
+  attachments: Attachment[];
 };
 export type BackupPayload = z.infer<typeof backupSchema>;
 
@@ -185,10 +238,24 @@ export function parseBackup(text: string): BackupPayload {
     throw new Error('invalid-backup');
   }
   const parsed = backupSchema.safeParse(value);
-  if (!parsed.success) {
+  if (parsed.success) {
+    return parsed.data;
+  }
+  const legacy = legacyBackupSchema.safeParse(value);
+  if (!legacy.success) {
     throw new Error('invalid-backup');
   }
-  return parsed.data;
+  return {
+    format: legacy.data.format,
+    version: 2,
+    exportedAt: legacy.data.exportedAt,
+    data: {
+      ...legacy.data.data,
+      tags: [],
+      transactionTags: [],
+      attachments: [],
+    },
+  };
 }
 
 function csvCell(value: string | number): string {

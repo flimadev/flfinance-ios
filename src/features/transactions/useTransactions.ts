@@ -1,8 +1,16 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
-import type { Account, Category, Transaction } from '@/src/db/schema';
+import type {
+  Account,
+  Attachment,
+  Category,
+  Tag,
+  Transaction,
+  TransactionTag,
+} from '@/src/db/schema';
 import type { UpdateTransactionInput } from '@/src/domain/financeSchemas';
+import type { CreateAttachmentInput } from '@/src/services/AttachmentService';
 import { getLocalDateString } from '@/src/domain/transactions';
 import { ptBR } from '@/src/i18n/pt-BR';
 import { getTransactionServices } from './transactionData';
@@ -12,6 +20,9 @@ type DataState = {
   accounts: Account[];
   categories: Category[];
   transactions: Transaction[];
+  tags: Tag[];
+  transactionTags: TransactionTag[];
+  attachments: Attachment[];
 };
 
 function getErrorMessage(error: unknown): string {
@@ -23,6 +34,9 @@ export function useTransactions() {
     accounts: [],
     categories: [],
     transactions: [],
+    tags: [],
+    transactionTags: [],
+    attachments: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,14 +47,18 @@ export function useTransactions() {
     }
 
     try {
-      const { accountService, categoryService, transactionService } =
+      const { accountService, categoryService, transactionService, tagService, attachmentService } =
         await getTransactionServices();
-      const [accounts, categories, transactions] = await Promise.all([
-        accountService.list(),
-        categoryService.list(),
-        transactionService.list(),
-      ]);
-      setData({ accounts, categories, transactions });
+      const [accounts, categories, transactions, tags, transactionTags, attachments] =
+        await Promise.all([
+          accountService.list(),
+          categoryService.list(),
+          transactionService.list(),
+          tagService.list(),
+          tagService.listAssociations(),
+          attachmentService.listAll(),
+        ]);
+      setData({ accounts, categories, transactions, tags, transactionTags, attachments });
       setError(null);
     } catch (loadError) {
       console.error('Não foi possível carregar os lançamentos.', loadError);
@@ -54,6 +72,37 @@ export function useTransactions() {
     useCallback(() => {
       void reload();
     }, [reload]),
+  );
+
+  const saveExtras = useCallback(
+    async (
+      transactionId: string,
+      tagIds: string[],
+      newAttachments: {
+        id: string;
+        uri: string;
+        mimeType: CreateAttachmentInput['mimeType'];
+        fileName: string | null;
+        sizeBytes: number;
+      }[],
+      removedAttachmentIds: string[],
+    ) => {
+      const { tagService, attachmentService } = await getTransactionServices();
+      await tagService.setForTransaction({ transactionId, tagIds });
+      for (const id of removedAttachmentIds) await attachmentService.remove(id);
+      for (const attachment of newAttachments) {
+        await attachmentService.add({
+          transactionId,
+          id: attachment.id,
+          sourceUri: attachment.uri,
+          mimeType: attachment.mimeType,
+          fileName: attachment.fileName,
+          sizeBytes: attachment.sizeBytes,
+        });
+      }
+      await reload(false);
+    },
+    [reload],
   );
 
   const create = useCallback(
@@ -123,5 +172,5 @@ export function useTransactions() {
     [reload],
   );
 
-  return { ...data, loading, error, reload, create, update, remove, restore };
+  return { ...data, loading, error, reload, create, update, remove, restore, saveExtras };
 }

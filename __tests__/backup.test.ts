@@ -10,11 +10,15 @@ import {
   invoices,
   recurringRules,
   schema,
+  tags,
   transactions,
+  transactionTags,
+  attachments,
 } from '../src/db/schema';
 import { createTransactionsCsv, parseBackup, type BackupData } from '../src/domain/backup';
 import { BackupRepository } from '../src/repositories/BackupRepository';
 import { BackupService } from '../src/services/BackupService';
+import type { AttachmentFileStore } from '../src/services/AttachmentFileStore';
 
 const now = Date.UTC(2026, 4, 20);
 const emptyData: BackupData = {
@@ -24,6 +28,9 @@ const emptyData: BackupData = {
   invoices: [],
   recurringRules: [],
   budgets: [],
+  tags: [],
+  transactionTags: [],
+  attachments: [],
   appMetadata: [],
 };
 
@@ -43,6 +50,28 @@ describe('backup validation and export', () => {
     expect(() =>
       parseBackup(JSON.stringify({ format: 'flfinance-backup', version: 2, data: emptyData })),
     ).toThrow('invalid-backup');
+  });
+
+  it('upgrades valid version 1 backups when restoring', () => {
+    const legacy = {
+      format: 'flfinance-backup',
+      version: 1,
+      exportedAt: now,
+      data: {
+        accounts: [],
+        categories: [],
+        transactions: [],
+        invoices: [],
+        recurringRules: [],
+        budgets: [],
+        appMetadata: [],
+      },
+    };
+
+    expect(parseBackup(JSON.stringify(legacy))).toMatchObject({
+      version: 2,
+      data: { tags: [], transactionTags: [], attachments: [] },
+    });
   });
 
   it('exports active transactions as safely quoted CSV with exact cents', () => {
@@ -100,10 +129,23 @@ describe('backup validation and export', () => {
 describe('backup restoration', () => {
   let database: ReturnType<typeof createTestDatabase>;
   let backupService: BackupService<unknown>;
+  let fileStore: AttachmentFileStore;
 
   beforeEach(async () => {
     database = createTestDatabase();
-    backupService = new BackupService(new BackupRepository(database.db));
+    fileStore = {
+      copyIntoStore: jest.fn(async () => ({
+        uri: 'file:///attachments/copied.jpg',
+        sizeBytes: 4,
+      })),
+      readBase64: jest.fn(async () => 'ZmFrZQ=='),
+      restoreBase64: jest.fn(async (_contents, id) => ({
+        uri: `file:///restored/${id}.jpg`,
+        sizeBytes: 4,
+      })),
+      remove: jest.fn(async () => {}),
+    };
+    backupService = new BackupService(new BackupRepository(database.db), fileStore);
     await database.db.insert(accounts).values({
       id: 'account-1',
       name: 'Conta principal',
@@ -158,6 +200,26 @@ describe('backup restoration', () => {
       createdAt: now,
       updatedAt: now,
     });
+    await database.db.insert(tags).values({
+      id: 'tag-1',
+      name: 'Casa',
+      color: '#5071A5',
+      createdAt: now,
+      updatedAt: now,
+    });
+    await database.db.insert(transactionTags).values({
+      transactionId: 'transaction-1',
+      tagId: 'tag-1',
+    });
+    await database.db.insert(attachments).values({
+      id: 'attachment-1',
+      transactionId: 'transaction-1',
+      uri: 'file:///attachments/receipt.jpg',
+      mimeType: 'image/jpeg',
+      fileName: 'receipt.jpg',
+      sizeBytes: 4,
+      createdAt: now,
+    });
     await database.db.insert(budgets).values({
       id: 'budget-1',
       categoryId: 'category-1',
@@ -180,7 +242,17 @@ describe('backup restoration', () => {
 
     const freshDatabase = createTestDatabase();
     try {
-      const freshBackupService = new BackupService(new BackupRepository(freshDatabase.db));
+      const restoredFileStore: AttachmentFileStore = {
+        ...fileStore,
+        restoreBase64: jest.fn(async (_contents, id) => ({
+          uri: `file:///restored/${id}.jpg`,
+          sizeBytes: 4,
+        })),
+      };
+      const freshBackupService = new BackupService(
+        new BackupRepository(freshDatabase.db),
+        restoredFileStore,
+      );
       await freshBackupService.restoreBackup(contents);
 
       const restored = await new BackupRepository(freshDatabase.db).exportAll();
@@ -191,6 +263,16 @@ describe('backup restoration', () => {
       expect(restored.invoices).toHaveLength(1);
       expect(restored.recurringRules).toHaveLength(1);
       expect(restored.budgets).toHaveLength(1);
+      expect(restored.tags).toHaveLength(1);
+      expect(restored.transactionTags).toHaveLength(1);
+      expect(restored.attachments).toMatchObject([
+        { id: 'attachment-1', uri: 'file:///restored/attachment-1.jpg' },
+      ]);
+      expect(restoredFileStore.restoreBase64).toHaveBeenCalledWith(
+        'ZmFrZQ==',
+        'attachment-1',
+        'image/jpeg',
+      );
       expect(restored.appMetadata).toEqual([{ key: 'initial_seed_v1', value: 'ready' }]);
     } finally {
       freshDatabase.client.close();
@@ -210,7 +292,7 @@ describe('backup restoration', () => {
       backupService.restoreBackup(
         JSON.stringify({
           format: 'flfinance-backup',
-          version: 1,
+          version: 2,
           exportedAt: now,
           data: payload.data,
         }),

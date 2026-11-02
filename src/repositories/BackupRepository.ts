@@ -3,12 +3,15 @@ import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import {
   accounts,
   appMetadata,
+  attachments,
   budgets,
   categories,
   invoices,
   recurringRules,
   schema,
+  tags,
   transactions,
+  transactionTags,
 } from '@/src/db/schema';
 import type { BackupData } from '@/src/domain/backup';
 
@@ -32,6 +35,9 @@ export class BackupRepository<TResult> {
       invoices: transaction.select().from(invoices).all(),
       recurringRules: transaction.select().from(recurringRules).all(),
       budgets: transaction.select().from(budgets).all(),
+      tags: transaction.select().from(tags).all(),
+      transactionTags: transaction.select().from(transactionTags).all(),
+      attachments: transaction.select().from(attachments).all(),
       appMetadata: transaction.select().from(appMetadata).all(),
     }));
   }
@@ -39,6 +45,9 @@ export class BackupRepository<TResult> {
   async replaceAll(data: BackupData): Promise<void> {
     this.db.transaction((transaction) => {
       transaction.delete(transactions).run();
+      transaction.delete(tags).run();
+      transaction.delete(attachments).run();
+      transaction.delete(transactionTags).run();
       transaction.delete(invoices).run();
       transaction.delete(recurringRules).run();
       transaction.delete(budgets).run();
@@ -73,6 +82,15 @@ export class BackupRepository<TResult> {
       });
       runBatches(data.transactions, (batch) => {
         transaction.insert(transactions).values(batch).run();
+      });
+      runBatches(data.tags, (batch) => {
+        transaction.insert(tags).values(batch).run();
+      });
+      runBatches(data.transactionTags, (batch) => {
+        transaction.insert(transactionTags).values(batch).run();
+      });
+      runBatches(data.attachments, (batch) => {
+        transaction.insert(attachments).values(batch).run();
       });
       runBatches(data.budgets, (batch) => {
         transaction.insert(budgets).values(batch).run();

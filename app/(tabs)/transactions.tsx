@@ -28,6 +28,9 @@ export default function TransactionsScreen() {
     accounts,
     categories,
     transactions,
+    tags,
+    transactionTags,
+    attachments,
     loading,
     error,
     reload,
@@ -35,11 +38,13 @@ export default function TransactionsScreen() {
     update,
     remove,
     restore,
+    saveExtras,
   } = useTransactions();
   const [query, setQuery] = useState('');
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [accountFilter, setAccountFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [tagFilter, setTagFilter] = useState('');
   const [period, setPeriod] = useState<'month' | 'all'>('month');
   const [monthOffset, setMonthOffset] = useState(0);
   const [filtersVisible, setFiltersVisible] = useState(false);
@@ -74,6 +79,15 @@ export default function TransactionsScreen() {
       ? ptBR.transactions.thisMonth
       : new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(displayedMonth);
   const normalizedQuery = normalizeSearchText(query);
+  const taggedTransactionIds = useMemo(
+    () =>
+      new Set(
+        transactionTags
+          .filter((relation) => !tagFilter || relation.tagId === tagFilter)
+          .map((relation) => relation.transactionId),
+      ),
+    [tagFilter, transactionTags],
+  );
 
   const visibleTransactions = useMemo(
     () =>
@@ -93,6 +107,9 @@ export default function TransactionsScreen() {
           }
         }
         if (categoryFilter && transaction.categoryId !== categoryFilter) {
+          return false;
+        }
+        if (tagFilter && !taggedTransactionIds.has(transaction.id)) {
           return false;
         }
         if (normalizedQuery) {
@@ -118,6 +135,8 @@ export default function TransactionsScreen() {
       normalizedQuery,
       period,
       selectedMonth,
+      tagFilter,
+      taggedTransactionIds,
       transactions,
     ],
   );
@@ -144,7 +163,8 @@ export default function TransactionsScreen() {
       ),
     [summaryTransactions],
   );
-  const activeFilterCount = Number(Boolean(accountFilter)) + Number(Boolean(categoryFilter));
+  const activeFilterCount =
+    Number(Boolean(accountFilter)) + Number(Boolean(categoryFilter)) + Number(Boolean(tagFilter));
 
   useEffect(() => {
     if (!pendingUndo) {
@@ -171,12 +191,12 @@ export default function TransactionsScreen() {
     setFormVisible(true);
   }, []);
 
-  async function saveTransaction(input: TransactionFormInput) {
+  async function saveTransaction(input: TransactionFormInput, retryTransactionId?: string) {
+    if (retryTransactionId) return update(retryTransactionId, input);
     if (editing) {
-      await update(editing.id, input);
-    } else {
-      await create(input);
+      return update(editing.id, input);
     }
+    return create(input);
   }
 
   const deleteTransaction = useCallback(
@@ -608,6 +628,26 @@ export default function TransactionsScreen() {
                   </View>
                 </View>
               ) : null}
+              {tags.length > 0 ? (
+                <View style={styles.modalFilterGroup}>
+                  <Text variant="label">{ptBR.transactions.tags}</Text>
+                  <View style={styles.modalChoices}>
+                    <FilterChip
+                      label={ptBR.transactions.allTags}
+                      onPress={() => setTagFilter('')}
+                      selected={!tagFilter}
+                    />
+                    {tags.map((tag) => (
+                      <FilterChip
+                        key={tag.id}
+                        label={tag.name}
+                        onPress={() => setTagFilter(tag.id)}
+                        selected={tagFilter === tag.id}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ) : null}
             </ScrollView>
             <View style={styles.filterActions}>
               <Button
@@ -615,6 +655,7 @@ export default function TransactionsScreen() {
                 onPress={() => {
                   setAccountFilter('');
                   setCategoryFilter('');
+                  setTagFilter('');
                 }}
                 variant="secondary"
               >
@@ -632,11 +673,25 @@ export default function TransactionsScreen() {
             key={editing?.id ?? 'new'}
             accounts={accounts}
             categories={categories}
+            tags={tags}
+            transactionTagIds={
+              editing
+                ? transactionTags
+                    .filter((relation) => relation.transactionId === editing.id)
+                    .map((relation) => relation.tagId)
+                : []
+            }
+            attachments={
+              editing
+                ? attachments.filter((attachment) => attachment.transactionId === editing.id)
+                : []
+            }
             onClose={() => {
               setFormVisible(false);
               setEditing(null);
             }}
             onSave={saveTransaction}
+            onSaveExtras={saveExtras}
             transaction={editing}
           />
         ) : null}

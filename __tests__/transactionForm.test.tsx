@@ -80,8 +80,12 @@ describe('TransactionFormSheet', () => {
       <TransactionFormSheet
         accounts={accounts}
         categories={categories}
+        tags={[]}
+        transactionTagIds={[]}
+        attachments={[]}
         onClose={onClose}
         onSave={onSave}
+        onSaveExtras={jest.fn()}
       />,
     );
     await fireEvent.press(screen.getByLabelText('Adicionar dígito 1'));
@@ -113,8 +117,12 @@ describe('TransactionFormSheet', () => {
       <TransactionFormSheet
         accounts={accounts}
         categories={categories}
+        tags={[]}
+        transactionTagIds={[]}
+        attachments={[]}
         onClose={jest.fn()}
         onSave={onSave}
+        onSaveExtras={jest.fn()}
       />,
     );
 
@@ -144,8 +152,12 @@ describe('TransactionFormSheet', () => {
       <TransactionFormSheet
         accounts={[...accounts, creditCard]}
         categories={categories}
+        tags={[]}
+        transactionTagIds={[]}
+        attachments={[]}
         onClose={jest.fn()}
         onSave={onSave}
+        onSaveExtras={jest.fn()}
       />,
     );
 

@@ -14,6 +14,7 @@ export const accountTypes = ['checking', 'savings', 'cash', 'credit_card', 'inve
 export const transactionKinds = ['expense', 'income', 'transfer'] as const;
 export const categoryKinds = ['expense', 'income'] as const;
 export const paymentMethods = ['pix', 'debit', 'credit', 'cash', 'boleto', 'transfer'] as const;
+export const attachmentMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'] as const;
 
 export const accounts = sqliteTable(
   'accounts',
@@ -200,6 +201,50 @@ export const budgets = sqliteTable(
   ],
 );
 
+export const tags = sqliteTable(
+  'tags',
+  {
+    id: text('id').primaryKey().notNull(),
+    name: text('name').notNull(),
+    color: text('color').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [uniqueIndex('tags_name_unique').on(table.name)],
+);
+
+export const transactionTags = sqliteTable(
+  'transaction_tags',
+  {
+    transactionId: text('transaction_id')
+      .notNull()
+      .references(() => transactions.id, { onDelete: 'cascade' }),
+    tagId: text('tag_id')
+      .notNull()
+      .references(() => tags.id, { onDelete: 'cascade' }),
+  },
+  (table) => [
+    uniqueIndex('transaction_tags_pair_unique').on(table.transactionId, table.tagId),
+    index('transaction_tags_tag_id_idx').on(table.tagId),
+  ],
+);
+
+export const attachments = sqliteTable(
+  'attachments',
+  {
+    id: text('id').primaryKey().notNull(),
+    transactionId: text('transaction_id')
+      .notNull()
+      .references(() => transactions.id, { onDelete: 'cascade' }),
+    uri: text('uri').notNull(),
+    mimeType: text('mime_type', { enum: attachmentMimeTypes }).notNull(),
+    fileName: text('file_name'),
+    sizeBytes: integer('size_bytes').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [index('attachments_transaction_id_idx').on(table.transactionId)],
+);
+
 export const appMetadata = sqliteTable('app_metadata', {
   key: text('key').primaryKey().notNull(),
   value: text('value').notNull(),
@@ -256,6 +301,28 @@ export const recurringRuleRelations = relations(recurringRules, ({ one }) => ({
   category: one(categories, { fields: [recurringRules.categoryId], references: [categories.id] }),
 }));
 
+export const tagRelations = relations(tags, ({ many }) => ({
+  transactions: many(transactionTags),
+}));
+
+export const transactionTagRelations = relations(transactionTags, ({ one }) => ({
+  transaction: one(transactions, {
+    fields: [transactionTags.transactionId],
+    references: [transactions.id],
+  }),
+  tag: one(tags, {
+    fields: [transactionTags.tagId],
+    references: [tags.id],
+  }),
+}));
+
+export const attachmentRelations = relations(attachments, ({ one }) => ({
+  transaction: one(transactions, {
+    fields: [attachments.transactionId],
+    references: [transactions.id],
+  }),
+}));
+
 export const schema = {
   accounts,
   categories,
@@ -263,6 +330,9 @@ export const schema = {
   invoices,
   recurringRules,
   budgets,
+  tags,
+  transactionTags,
+  attachments,
   appMetadata,
   accountRelations,
   categoryRelations,
@@ -270,6 +340,9 @@ export const schema = {
   budgetRelations,
   invoiceRelations,
   recurringRuleRelations,
+  tagRelations,
+  transactionTagRelations,
+  attachmentRelations,
 };
 
 export type Account = typeof accounts.$inferSelect;
@@ -278,3 +351,6 @@ export type Transaction = typeof transactions.$inferSelect;
 export type Budget = typeof budgets.$inferSelect;
 export type Invoice = typeof invoices.$inferSelect;
 export type RecurringRule = typeof recurringRules.$inferSelect;
+export type Tag = typeof tags.$inferSelect;
+export type TransactionTag = typeof transactionTags.$inferSelect;
+export type Attachment = typeof attachments.$inferSelect;

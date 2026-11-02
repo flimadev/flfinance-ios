@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
+import * as Crypto from 'expo-crypto';
 import {
+  Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -9,10 +13,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { File } from 'expo-file-system';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { Account, Category, Transaction } from '@/src/db/schema';
+import type { Account, Attachment, Category, Tag, Transaction } from '@/src/db/schema';
 import type { CreateTransactionInput } from '@/src/domain/financeSchemas';
+import type { AttachmentMimeType } from '@/src/services/AttachmentService';
 import { getLocalDateString, parseCurrencyDigitsToCents } from '@/src/domain/transactions';
 import { ptBR } from '@/src/i18n/pt-BR';
 import { layout, radius, spacing, typography, useTheme } from '@/src/theme';
@@ -24,12 +30,31 @@ type TransactionFormSheetProps = {
   transaction?: Transaction | null;
   accounts: Account[];
   categories: Category[];
+  tags: Tag[];
+  transactionTagIds: string[];
+  attachments: Attachment[];
   onClose: () => void;
-  onSave: (input: TransactionFormInput) => Promise<unknown>;
+  onSave: (
+    input: TransactionFormInput,
+    retryTransactionId?: string,
+  ) => Promise<Transaction | null | void>;
+  onSaveExtras: (
+    transactionId: string,
+    tagIds: string[],
+    newAttachments: PickedAttachment[],
+    removedAttachmentIds: string[],
+  ) => Promise<void>;
 };
 
 type TransactionKind = CreateTransactionInput['kind'];
 type PaymentMethod = Exclude<NonNullable<CreateTransactionInput['paymentMethod']>, 'transfer'>;
+type PickedAttachment = {
+  id: string;
+  uri: string;
+  mimeType: AttachmentMimeType;
+  fileName: string | null;
+  sizeBytes: number;
+};
 
 const kinds: { value: TransactionKind; label: string }[] = [
   { value: 'expense', label: ptBR.transactions.expense },
@@ -49,8 +74,12 @@ export function TransactionFormSheet({
   transaction,
   accounts,
   categories,
+  tags,
+  transactionTagIds,
+  attachments,
   onClose,
   onSave,
+  onSaveExtras,
 }: TransactionFormSheetProps) {
   const { colors } = useTheme();
   const modalAnimationType = useModalAnimationType();
@@ -83,6 +112,11 @@ export function TransactionFormSheet({
   const [recurring, setRecurring] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState(transactionTagIds);
+  const [newAttachments, setNewAttachments] = useState<PickedAttachment[]>([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [persistedTransaction, setPersistedTransaction] = useState<Transaction | null>(null);
 
   const amountCents = parseCurrencyDigitsToCents(amountDigits) ?? 0;
   const compatibleCategories = categories.filter(
@@ -136,7 +170,7 @@ export function TransactionFormSheet({
     setSaving(true);
     setError(null);
     try {
-      await onSave({
+      const input: TransactionFormInput = {
         accountId,
         categoryId: kind === 'transfer' || !categoryId ? null : categoryId,
         kind,
@@ -150,7 +184,19 @@ export function TransactionFormSheet({
         ...(!transaction && !isCreditCard && kind !== 'transfer' && recurring
           ? { recurring: true }
           : {}),
-      });
+      };
+      const saved = persistedTransaction
+        ? await onSave(input, persistedTransaction.id)
+        : await onSave(input);
+      if (saved?.id) {
+        setPersistedTransaction(saved);
+        await onSaveExtras(
+          saved.id,
+          kind === 'transfer' ? [] : selectedTagIds,
+          newAttachments,
+          removedAttachmentIds,
+        );
+      }
       onClose();
     } catch (saveError) {
       console.error('Não foi possível salvar o lançamento.', saveError);
@@ -159,6 +205,83 @@ export function TransactionFormSheet({
       setSaving(false);
     }
   }
+
+  async function pickImage(source: 'camera' | 'library') {
+    try {
+      if (source === 'camera') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          setError(ptBR.transactions.cameraPermission);
+          return;
+        }
+      } else {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          setError(ptBR.transactions.photosPermission);
+          return;
+        }
+      }
+      const result =
+        source === 'camera'
+          ? await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.75 })
+          : await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ['images'],
+              allowsEditing: true,
+              quality: 0.75,
+            });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const sizeBytes = asset
+        ? (asset.fileSize ?? new File(asset.uri).info().size ?? undefined)
+        : undefined;
+      if (!asset || sizeBytes === undefined || sizeBytes <= 0 || sizeBytes > 5 * 1024 * 1024) {
+        setError(ptBR.transactions.attachmentTooLarge);
+        return;
+      }
+      const extension = asset.fileName?.split('.').pop()?.toLowerCase();
+      const mimeType =
+        asset.mimeType ??
+        (extension === 'png'
+          ? 'image/png'
+          : extension === 'webp'
+            ? 'image/webp'
+            : extension === 'heic'
+              ? 'image/heic'
+              : 'image/jpeg');
+      if (
+        mimeType !== 'image/jpeg' &&
+        mimeType !== 'image/png' &&
+        mimeType !== 'image/webp' &&
+        mimeType !== 'image/heic'
+      ) {
+        setError(ptBR.transactions.attachmentUnsupported);
+        return;
+      }
+      setNewAttachments((current) => [
+        ...current,
+        {
+          id: Crypto.randomUUID(),
+          uri: asset.uri,
+          mimeType,
+          fileName: asset.fileName ?? null,
+          sizeBytes,
+        },
+      ]);
+      setError(null);
+    } catch (pickerError) {
+      console.error('Não foi possível adicionar a imagem ao lançamento.', pickerError);
+      setError(ptBR.transactions.attachmentError);
+    }
+  }
+
+  const canEditExtras = !recurring && (!isCreditCard || Boolean(transaction));
+  const visibleAttachments = [
+    ...attachments.filter((attachment) => !removedAttachmentIds.includes(attachment.id)),
+    ...newAttachments.map((attachment, index) => ({
+      ...attachment,
+      id: `new-${index}`,
+    })),
+  ];
 
   return (
     <Modal
@@ -367,6 +490,98 @@ export function TransactionFormSheet({
               />
             ) : null}
 
+            {canEditExtras && kind !== 'transfer' ? (
+              <>
+                <View style={styles.group}>
+                  <Text variant="label">{ptBR.transactions.tags}</Text>
+                  {tags.length > 0 ? (
+                    <View style={styles.choiceRow}>
+                      {tags.map((tag) => {
+                        const selected = selectedTagIds.includes(tag.id);
+                        return (
+                          <ChoiceButton
+                            key={tag.id}
+                            label={tag.name}
+                            onPress={() =>
+                              setSelectedTagIds((current) =>
+                                selected
+                                  ? current.filter((id) => id !== tag.id)
+                                  : [...current, tag.id],
+                              )
+                            }
+                            selected={selected}
+                          />
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <Text tone="secondary" variant="caption">
+                      {ptBR.transactions.noTags}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.group}>
+                  <Text variant="label">{ptBR.transactions.attachments}</Text>
+                  <View style={styles.attachmentActions}>
+                    <Button
+                      onPress={() =>
+                        Alert.alert(ptBR.transactions.addAttachment, undefined, [
+                          {
+                            text: ptBR.transactions.takePhoto,
+                            onPress: () => void pickImage('camera'),
+                          },
+                          {
+                            text: ptBR.transactions.choosePhoto,
+                            onPress: () => void pickImage('library'),
+                          },
+                          { text: ptBR.transactions.cancel, style: 'cancel' },
+                        ])
+                      }
+                    >
+                      {ptBR.transactions.addAttachment}
+                    </Button>
+                  </View>
+                  {visibleAttachments.length > 0 ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <View style={styles.attachmentRow}>
+                        {visibleAttachments.map((attachment) => (
+                          <View key={attachment.id} style={styles.attachmentItem}>
+                            <Pressable
+                              accessibilityLabel={ptBR.transactions.viewAttachment}
+                              accessibilityRole="button"
+                              onPress={() => setPreviewUri(attachment.uri)}
+                            >
+                              <Image source={{ uri: attachment.uri }} style={styles.thumbnail} />
+                            </Pressable>
+                            <Pressable
+                              accessibilityLabel={ptBR.transactions.removeAttachment}
+                              accessibilityRole="button"
+                              onPress={() => {
+                                if (attachment.id.startsWith('new-')) {
+                                  const index = Number(attachment.id.slice(4));
+                                  setNewAttachments((current) =>
+                                    current.filter((_, currentIndex) => currentIndex !== index),
+                                  );
+                                } else {
+                                  setRemovedAttachmentIds((current) => [...current, attachment.id]);
+                                }
+                              }}
+                              style={[
+                                styles.removeAttachment,
+                                { backgroundColor: colors.negative },
+                              ]}
+                            >
+                              <Text style={{ color: colors.onPrimary }}>×</Text>
+                            </Pressable>
+                          </View>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  ) : null}
+                </View>
+              </>
+            ) : null}
+
             {error ? (
               <Text accessibilityRole="alert" tone="negative">
                 {error}
@@ -384,6 +599,26 @@ export function TransactionFormSheet({
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      <Modal
+        animationType={modalAnimationType}
+        onRequestClose={() => setPreviewUri(null)}
+        presentationStyle="fullScreen"
+        visible={previewUri !== null}
+      >
+        <View style={[styles.preview, { backgroundColor: colors.background }]}>
+          <Pressable
+            accessibilityLabel={ptBR.transactions.closeAttachment}
+            accessibilityRole="button"
+            onPress={() => setPreviewUri(null)}
+            style={[styles.previewClose, { backgroundColor: colors.surface }]}
+          >
+            <Text variant="heading">×</Text>
+          </Pressable>
+          {previewUri ? (
+            <Image resizeMode="contain" source={{ uri: previewUri }} style={styles.previewImage} />
+          ) : null}
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -532,8 +767,55 @@ const styles = StyleSheet.create({
   },
   choiceRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing[2],
     paddingRight: spacing[2],
+  },
+  attachmentActions: {
+    alignItems: 'flex-start',
+  },
+  attachmentRow: {
+    flexDirection: 'row',
+    gap: spacing[3],
+    paddingVertical: spacing[2],
+  },
+  attachmentItem: {
+    position: 'relative',
+  },
+  thumbnail: {
+    width: 88,
+    height: 88,
+    borderRadius: radius.medium,
+  },
+  removeAttachment: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    height: layout.touchTarget,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: -spacing[2],
+    top: -spacing[2],
+    width: layout.touchTarget,
+  },
+  preview: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewClose: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    height: layout.touchTarget,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: spacing[4],
+    top: spacing[8],
+    width: layout.touchTarget,
+    zIndex: 1,
+  },
+  previewImage: {
+    height: '100%',
+    width: '100%',
   },
   choice: {
     minHeight: layout.touchTarget,

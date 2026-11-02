@@ -12,9 +12,21 @@
 - O cadastro de recorrências continua usando o fluxo existente de novo
   lançamento; a seção de dívidas oferece acompanhamento e pagamento.
 
+## Fase 10 — categorias, tags e anexos
+
+- Categorias arquivadas preservam o histórico. Arquivar/restaurar uma categoria
+  também inclui sua árvore de subcategorias; a ordenação é persistida por nível.
+- Tags são opcionais, associadas por `transaction_tags` e filtráveis sem alterar
+  os dados financeiros do lançamento.
+- Fotos são copiadas para `documentDirectory/attachments`, limitadas a 5 MB cada.
+  O backup JSON v2 incorpora o conteúdo Base64 das fotos respeitando o limite
+  global de 25 MB; backups v1 continuam aceitos e são restaurados sem anexos.
+- Restore cria arquivos com nomes locais novos antes de substituir o banco e só
+  remove arquivos anteriores depois que a transação do banco é concluída.
+
 ## Fase 7 — segurança e backup
 
-- O backup é JSON versionado e validado (`flfinance-backup`, versão 1), incluindo
+- O backup é JSON versionado e validado (`flfinance-backup`), incluindo
   todas as tabelas financeiras e metadados. A restauração substitui os dados
   somente depois da validação e dentro de uma única transação SQLite.
 - Arquivos de backup têm limite de 25 MB; preferências de tema, início do mês e

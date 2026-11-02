@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, gte, isNotNull, isNull, lte, like, or } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, gte, isNotNull, isNull, lte, like, or } from 'drizzle-orm';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 
-import { schema, transactions, type Transaction } from '@/src/db/schema';
+import { schema, transactionTags, transactions, type Transaction } from '@/src/db/schema';
 import type { TransactionFilters } from '@/src/domain/financeSchemas';
 
 type TransactionInsert = typeof transactions.$inferInsert;
@@ -46,6 +46,21 @@ export class TransactionRepository<TResult> implements TransactionRepositoryCont
     }
     if (filters.categoryId) {
       conditions.push(eq(transactions.categoryId, filters.categoryId));
+    }
+    if (filters.tagId) {
+      conditions.push(
+        exists(
+          this.db
+            .select({ tagId: transactionTags.tagId })
+            .from(transactionTags)
+            .where(
+              and(
+                eq(transactionTags.transactionId, transactions.id),
+                eq(transactionTags.tagId, filters.tagId),
+              ),
+            ),
+        ),
+      );
     }
     if (filters.fromDate) {
       conditions.push(gte(transactions.date, filters.fromDate));

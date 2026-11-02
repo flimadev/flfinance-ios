@@ -22,6 +22,13 @@
       "when": 1793587851458,
       "tag": "0002_cards_recurring_safe",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793635685423,
+      "tag": "0003_loving_steel_serpent",
+      "breakpoints": true
     }
   ]
 }

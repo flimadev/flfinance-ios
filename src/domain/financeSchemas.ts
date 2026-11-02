@@ -43,8 +43,19 @@ export const createCategorySchema = z.object({
 });
 
 export const updateCategorySchema = createCategorySchema
+  .extend({ archivedAt: z.number().int().safe().nullable().optional() })
   .partial()
   .refine((value) => Object.keys(value).length > 0);
+
+export const createTagSchema = z.object({
+  name: nameSchema,
+  color: colorSchema,
+});
+
+export const setTransactionTagsSchema = z.object({
+  transactionId: idSchema,
+  tagIds: z.array(idSchema).max(50),
+});
 
 const localDateSchema = z
   .string()
@@ -127,6 +138,7 @@ export const transactionFiltersSchema = z
   .object({
     accountId: idSchema.optional(),
     categoryId: idSchema.optional(),
+    tagId: idSchema.optional(),
     fromDate: localDateSchema.optional(),
     toDate: localDateSchema.optional(),
     query: z.string().trim().max(120).optional(),
@@ -181,6 +193,8 @@ export type CreateAccountInput = z.input<typeof createAccountSchema>;
 export type UpdateAccountInput = z.input<typeof updateAccountSchema>;
 export type CreateCategoryInput = z.input<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.input<typeof updateCategorySchema>;
+export type CreateTagInput = z.input<typeof createTagSchema>;
+export type SetTransactionTagsInput = z.input<typeof setTransactionTagsSchema>;
 export type CreateTransactionInput = z.input<typeof createTransactionSchema>;
 export type UpdateTransactionInput = z.input<typeof updateTransactionSchema>;
 export type TransactionFilters = z.input<typeof transactionFiltersSchema>;

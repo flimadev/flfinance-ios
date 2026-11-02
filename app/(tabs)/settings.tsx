@@ -2,6 +2,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
+import { router } from 'expo-router';
 
 import { getDatabase } from '@/src/db/client';
 import { ptBR } from '@/src/i18n/pt-BR';
@@ -9,6 +10,7 @@ import { useAppPreferences, type ThemeMode } from '@/src/preferences/AppPreferen
 import { authenticateBiometrically } from '@/src/preferences/biometricAuthentication';
 import { BackupRepository } from '@/src/repositories/BackupRepository';
 import { BackupService } from '@/src/services/BackupService';
+import { ExpoAttachmentFileStore } from '@/src/services/AttachmentFileStore';
 import { pickBackupContents, shareTextFile } from '@/src/services/BackupFileService';
 import { layout, radius, spacing, useTheme } from '@/src/theme';
 import { Button, Card, Screen, Text } from '@/src/ui';
@@ -33,7 +35,9 @@ function getErrorMessage(error: unknown): string {
 }
 
 function getBackupService() {
-  return getDatabase().then((database) => new BackupService(new BackupRepository(database)));
+  return getDatabase().then(
+    (database) => new BackupService(new BackupRepository(database), new ExpoAttachmentFileStore()),
+  );
 }
 
 export default function SettingsScreen() {
@@ -246,6 +250,12 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
         </View>
+      </Card>
+
+      <Card style={styles.section}>
+        <Text variant="heading">{ptBR.categories.title}</Text>
+        <Text tone="secondary">{ptBR.settings.manageCategoriesDescription}</Text>
+        <Button onPress={() => router.push('/categories')}>{ptBR.settings.manageCategories}</Button>
       </Card>
 
       <Card style={styles.section}>
