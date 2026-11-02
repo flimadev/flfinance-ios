@@ -197,6 +197,39 @@ describe('finance services', () => {
         .where(eq(transactionsTable.id, transaction.id))
         .get()?.deletedAt,
     ).toEqual(now + 2);
+
+    await transactionService.restore(transaction.id);
+    await expect(transactionService.list()).resolves.toHaveLength(1);
+  });
+
+  it('creates transfers between distinct accounts and includes both sides in account filters', async () => {
+    const source = await accounts.create({
+      name: 'Conta corrente',
+      type: 'checking',
+      initialBalanceCents: 0,
+      color: '#147A58',
+      icon: 'building.columns.fill',
+    });
+    const destination = await accounts.create({
+      name: 'Poupança',
+      type: 'savings',
+      initialBalanceCents: 0,
+      color: '#5071A5',
+      icon: 'building.2.fill',
+    });
+
+    const transfer = await transactionService.create({
+      accountId: source.id,
+      transferAccountId: destination.id,
+      kind: 'transfer',
+      amountCents: 5_000,
+      date: '2025-06-18',
+      description: 'Reserva mensal',
+      paymentMethod: 'transfer',
+    });
+
+    expect(transfer.transferAccountId).toBe(destination.id);
+    await expect(transactionService.list({ accountId: destination.id })).resolves.toHaveLength(1);
   });
 
   it('filters transaction history and seeds defaults only once', async () => {

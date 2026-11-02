@@ -90,6 +90,13 @@ export class TransactionService {
     }
   }
 
+  async restore(id: string): Promise<void> {
+    const restored = await this.repository.restore(id, getServiceTimestamp(this.options));
+    if (!restored) {
+      throw new NotFoundError();
+    }
+  }
+
   private async validateReferences(
     transaction: Pick<Transaction, 'accountId' | 'kind'> &
       Partial<Pick<Transaction, 'categoryId' | 'transferAccountId'>>,

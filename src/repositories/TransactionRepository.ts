@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, isNull, lte, like, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNotNull, isNull, lte, like, or } from 'drizzle-orm';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 
 import { schema, transactions, type Transaction } from '@/src/db/schema';
@@ -12,6 +12,7 @@ export interface TransactionRepositoryContract {
   list(filters: TransactionFilters): Promise<Transaction[]>;
   update(id: string, values: Partial<TransactionInsert>): Promise<Transaction | undefined>;
   remove(id: string, deletedAt: number): Promise<boolean>;
+  restore(id: string, updatedAt: number): Promise<boolean>;
 }
 
 export class TransactionRepository<TResult> implements TransactionRepositoryContract {
@@ -35,7 +36,13 @@ export class TransactionRepository<TResult> implements TransactionRepositoryCont
     const conditions = [isNull(transactions.deletedAt)];
 
     if (filters.accountId) {
-      conditions.push(eq(transactions.accountId, filters.accountId));
+      const accountMatch = or(
+        eq(transactions.accountId, filters.accountId),
+        eq(transactions.transferAccountId, filters.accountId),
+      );
+      if (accountMatch) {
+        conditions.push(accountMatch);
+      }
     }
     if (filters.categoryId) {
       conditions.push(eq(transactions.categoryId, filters.categoryId));
@@ -80,5 +87,14 @@ export class TransactionRepository<TResult> implements TransactionRepositoryCont
       .where(and(eq(transactions.id, id), isNull(transactions.deletedAt)))
       .returning({ id: transactions.id });
     return removed !== undefined;
+  }
+
+  async restore(id: string, updatedAt: number): Promise<boolean> {
+    const [restored] = await this.db
+      .update(transactions)
+      .set({ deletedAt: null, updatedAt })
+      .where(and(eq(transactions.id, id), isNotNull(transactions.deletedAt)))
+      .returning({ id: transactions.id });
+    return restored !== undefined;
   }
 }
