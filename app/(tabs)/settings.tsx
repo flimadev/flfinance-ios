@@ -6,6 +6,7 @@ import { SymbolView } from 'expo-symbols';
 import { getDatabase } from '@/src/db/client';
 import { ptBR } from '@/src/i18n/pt-BR';
 import { useAppPreferences, type ThemeMode } from '@/src/preferences/AppPreferencesProvider';
+import { authenticateBiometrically } from '@/src/preferences/biometricAuthentication';
 import { BackupRepository } from '@/src/repositories/BackupRepository';
 import { BackupService } from '@/src/services/BackupService';
 import { pickBackupContents, shareTextFile } from '@/src/services/BackupFileService';
@@ -66,10 +67,10 @@ export default function SettingsScreen() {
         setMessage(ptBR.settings.biometricUnavailable);
         return;
       }
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: ptBR.settings.biometricPrompt,
-        cancelLabel: ptBR.settings.cancel,
-      });
+      const result = await authenticateBiometrically(
+        ptBR.settings.biometricPrompt,
+        ptBR.settings.cancel,
+      );
       if (!result.success) {
         setMessage(ptBR.settings.authenticationRequired);
         return;

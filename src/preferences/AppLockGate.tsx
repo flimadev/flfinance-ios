@@ -1,4 +1,3 @@
-import * as LocalAuthentication from 'expo-local-authentication';
 import { useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { AppState, Platform, StyleSheet, View } from 'react-native';
 
@@ -6,6 +5,7 @@ import { ptBR } from '@/src/i18n/pt-BR';
 import { spacing } from '@/src/theme';
 import { Button, Screen, Text } from '@/src/ui';
 import { useAppPreferences } from './AppPreferencesProvider';
+import { authenticateBiometrically } from './biometricAuthentication';
 
 export function AppLockGate({ children }: PropsWithChildren) {
   const {
@@ -28,10 +28,10 @@ export function AppLockGate({ children }: PropsWithChildren) {
 
     attemptActive.current = true;
     try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: ptBR.settings.biometricPrompt,
-        cancelLabel: ptBR.settings.cancel,
-      });
+      const result = await authenticateBiometrically(
+        ptBR.settings.biometricPrompt,
+        ptBR.settings.cancel,
+      );
       setAuthError(null);
       if (result.success) {
         setUnlocked(true);

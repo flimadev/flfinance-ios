@@ -6,12 +6,17 @@ import {
   AppPreferencesProvider,
   useAppPreferences,
 } from '../src/preferences/AppPreferencesProvider';
+import { authenticateBiometrically } from '../src/preferences/biometricAuthentication';
 import { Text } from '../src/ui';
+import * as LocalAuthentication from 'expo-local-authentication';
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
   setItemAsync: jest.fn(),
   deleteItemAsync: jest.fn(),
+}));
+jest.mock('expo-local-authentication', () => ({
+  authenticateAsync: jest.fn().mockResolvedValue({ success: true }),
 }));
 
 function PreferencesProbe() {
@@ -70,5 +75,17 @@ describe('app preferences', () => {
       expect(screen.getByTestId('theme').props.children).toBe('dark');
       expect(screen.getByTestId('month-start').props.children).toBe('15');
     });
+  });
+
+  it('disables the iOS device passcode fallback when prompting for biometrics', async () => {
+    await authenticateBiometrically('Autentique-se', 'Cancelar');
+
+    expect(LocalAuthentication.authenticateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promptMessage: 'Autentique-se',
+        cancelLabel: 'Cancelar',
+        disableDeviceFallback: true,
+      }),
+    );
   });
 });
