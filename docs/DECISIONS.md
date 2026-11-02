@@ -19,6 +19,20 @@
 - O cadastro de recorrências continua usando o fluxo existente de novo
   lançamento; a seção de dívidas oferece acompanhamento e pagamento.
 
+## Fase 12 — relatórios e exportação
+
+- Relatórios usam o mesmo período financeiro configurado para o dashboard e
+  combinam filtros de conta, categoria (incluindo sem categoria), tag e tipo.
+  A projeção de saldo ignora esses filtros analíticos, mas respeita o período e
+  a conta selecionados para manter o significado de saldo de conta.
+- A exportação PDF é renderizada localmente com `expo-print`; o XLSX usa OOXML
+  compactado com `fflate`, sem dependência de APIs web-only. Arquivos são
+  compartilhados pelo menu nativo de iOS/Android; compartilhar arquivos locais
+  pela web não é suportado.
+- Planilhas armazenam valores como centavos inteiros; os documentos mostram
+  valores formatados em reais. A geração/compartilhamento não envia dados a um
+  servidor.
+
 ## Fase 10 — categorias, tags e anexos
 
 - Categorias arquivadas preservam o histórico. Arquivar/restaurar uma categoria

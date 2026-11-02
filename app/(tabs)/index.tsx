@@ -148,11 +148,18 @@ export default function HomeScreen() {
     <Screen contentContainerStyle={styles.content} scrollable testID="dashboard-screen">
       <View style={styles.header}>
         <Text variant="title">{ptBR.dashboard.title}</Text>
-        <Link asChild href="/debts">
-          <Button haptic={false} variant="secondary">
-            {ptBR.debts.open}
-          </Button>
-        </Link>
+        <View style={styles.headerActions}>
+          <Link asChild href="/reports">
+            <Button haptic={false} style={styles.headerActionButton} variant="secondary">
+              {ptBR.reports.open}
+            </Button>
+          </Link>
+          <Link asChild href="/debts">
+            <Button haptic={false} style={styles.headerActionButton} variant="secondary">
+              {ptBR.debts.open}
+            </Button>
+          </Link>
+        </View>
       </View>
 
       <View
@@ -375,6 +382,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: spacing[2],
+  },
+  headerActionButton: {
+    paddingHorizontal: spacing[3],
   },
   periodSelector: {
     flexDirection: 'row',
