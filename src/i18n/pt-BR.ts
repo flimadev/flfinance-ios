@@ -1,4 +1,7 @@
 export const ptBR = {
+  accessibility: {
+    loadingContent: 'Carregando conteúdo',
+  },
   database: {
     loading: 'Preparando seus dados…',
     errorTitle: 'Não foi possível abrir seus dados',

@@ -1,5 +1,6 @@
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { ptBR } from '@/src/i18n/pt-BR';
 import { radius, useTheme } from '@/src/theme';
 
 type SkeletonProps = {
@@ -21,7 +22,7 @@ export function Skeleton({
     <View
       accessible
       accessibilityRole="progressbar"
-      accessibilityLabel="Carregando conteúdo"
+      accessibilityLabel={ptBR.accessibility.loadingContent}
       style={[
         styles.skeleton,
         { width, height, borderRadius, backgroundColor: colors.surfaceSubtle },

@@ -2,7 +2,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import { ThemePreviewProvider, colors } from '../src/theme';
-import { AmountText, Button, formatCurrencyCents, Text } from '../src/ui';
+import { AmountText, Button, formatCurrencyCents, Skeleton, Text } from '../src/ui';
 import UiCatalogScreen from '../app/dev/ui';
 
 function contrastRatio(foreground: string, background: string): number {
@@ -78,6 +78,16 @@ describe('design system', () => {
     );
 
     expect(screen.getByLabelText('R$ 1.234,56')).toBeTruthy();
+  });
+
+  it('announces skeleton loading with the localized accessibility label', async () => {
+    const screen = await render(
+      <ThemePreviewProvider scheme="light">
+        <Skeleton width={48} height={48} />
+      </ThemePreviewProvider>,
+    );
+
+    expect(screen.getByRole('progressbar', { name: 'Carregando conteúdo' })).toBeTruthy();
   });
 
   it('keeps buttons operable and exposes a press action', async () => {
