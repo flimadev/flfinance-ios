@@ -6,6 +6,7 @@ import type { DashboardPeriod } from '@/src/domain/dashboard';
 import { ptBR } from '@/src/i18n/pt-BR';
 import { layout, radius, spacing, useTheme } from '@/src/theme';
 import { Button, Text } from '@/src/ui';
+import { useModalAnimationType } from '@/src/ui/useModalAnimationType';
 
 type DateRangePickerProps = {
   initialRange: DashboardPeriod;
@@ -54,6 +55,7 @@ function formatDateLabel(value: string | null): string {
 
 export function DateRangePicker({ initialRange, onCancel, onApply }: DateRangePickerProps) {
   const { colors } = useTheme();
+  const modalAnimationType = useModalAnimationType();
   const [visibleMonth, setVisibleMonth] = useState(() => parseLocalDate(initialRange.fromDate));
   const [startDate, setStartDate] = useState<string | null>(initialRange.fromDate);
   const [endDate, setEndDate] = useState<string | null>(initialRange.toDate);
@@ -82,7 +84,7 @@ export function DateRangePicker({ initialRange, onCancel, onApply }: DateRangePi
   }
 
   return (
-    <Modal animationType="slide" onRequestClose={onCancel} transparent visible>
+    <Modal animationType={modalAnimationType} onRequestClose={onCancel} transparent visible>
       <View style={[styles.backdrop, { backgroundColor: colors.overlay }]}>
         <ScrollView
           contentContainerStyle={styles.modalScrollContent}

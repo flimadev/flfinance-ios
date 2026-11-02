@@ -4,6 +4,10 @@ import type { Account, Category } from '../src/db/schema';
 import type { CreateTransactionInput } from '../src/domain/financeSchemas';
 import { TransactionFormSheet } from '../src/features/transactions/TransactionFormSheet';
 
+jest.mock('react-native-reanimated', () => ({
+  useReducedMotion: () => false,
+}));
+
 const accounts: Account[] = [
   {
     id: 'checking',

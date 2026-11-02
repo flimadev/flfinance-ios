@@ -17,6 +17,7 @@ import { getLocalDateString, parseCurrencyDigitsToCents } from '@/src/domain/tra
 import { ptBR } from '@/src/i18n/pt-BR';
 import { layout, radius, spacing, typography, useTheme } from '@/src/theme';
 import { AmountText, Button, Text } from '@/src/ui';
+import { useModalAnimationType } from '@/src/ui/useModalAnimationType';
 import type { TransactionFormInput } from './transactionFormTypes';
 
 type TransactionFormSheetProps = {
@@ -52,6 +53,7 @@ export function TransactionFormSheet({
   onSave,
 }: TransactionFormSheetProps) {
   const { colors } = useTheme();
+  const modalAnimationType = useModalAnimationType();
   const availableAccounts = useMemo(
     () => accounts.filter((account) => account.archivedAt === null && account.deletedAt === null),
     [accounts],
@@ -159,7 +161,12 @@ export function TransactionFormSheet({
   }
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} presentationStyle="pageSheet" visible>
+    <Modal
+      animationType={modalAnimationType}
+      onRequestClose={onClose}
+      presentationStyle="pageSheet"
+      visible
+    >
       <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}

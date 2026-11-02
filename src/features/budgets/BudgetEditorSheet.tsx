@@ -7,6 +7,7 @@ import { parseCurrencyDigitsToCents } from '@/src/domain/transactions';
 import { ptBR } from '@/src/i18n/pt-BR';
 import { layout, radius, spacing, useTheme } from '@/src/theme';
 import { AmountText, Button, Text } from '@/src/ui';
+import { useModalAnimationType } from '@/src/ui/useModalAnimationType';
 
 type BudgetEditorSheetProps = {
   category: Category;
@@ -33,6 +34,7 @@ export function BudgetEditorSheet({
   onSave,
 }: BudgetEditorSheetProps) {
   const { colors } = useTheme();
+  const modalAnimationType = useModalAnimationType();
   const [digits, setDigits] = useState(() => (budget ? String(budget.amountCents) : ''));
   const [saving, setSaving] = useState(false);
   const amountCents = parseCurrencyDigitsToCents(digits) ?? 0;
@@ -63,7 +65,7 @@ export function BudgetEditorSheet({
   }
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} transparent visible>
+    <Modal animationType={modalAnimationType} onRequestClose={onClose} transparent visible>
       <View style={[styles.backdrop, { backgroundColor: colors.overlay }]}>
         <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
           <View style={[styles.panel, { backgroundColor: colors.surface }]}>

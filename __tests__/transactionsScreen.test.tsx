@@ -9,6 +9,9 @@ import { useTransactions } from '../src/features/transactions/useTransactions';
 
 jest.mock('expo-router', () => ({ useFocusEffect: jest.fn() }));
 jest.mock('expo-symbols', () => ({ SymbolView: () => null }));
+jest.mock('react-native-reanimated', () => ({
+  useReducedMotion: () => false,
+}));
 jest.mock('@shopify/flash-list', () => ({
   FlashList: ({
     data,

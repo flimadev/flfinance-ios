@@ -17,6 +17,7 @@ import type { InvoiceWithTotal } from '@/src/services/InvoiceService';
 import { ptBR } from '@/src/i18n/pt-BR';
 import { layout, radius, spacing, useTheme } from '@/src/theme';
 import { AmountText, Button, Card, EmptyState, Screen, Text } from '@/src/ui';
+import { useModalAnimationType } from '@/src/ui/useModalAnimationType';
 import { getTransactionServices } from '@/src/features/transactions/transactionData';
 
 type CardInvoiceMap = Record<string, InvoiceWithTotal[]>;
@@ -45,6 +46,7 @@ function parseDay(value: string): number | null {
 
 export default function CardsScreen() {
   const { colors } = useTheme();
+  const modalAnimationType = useModalAnimationType();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [invoiceMap, setInvoiceMap] = useState<CardInvoiceMap>({});
   const [loading, setLoading] = useState(true);
@@ -310,7 +312,7 @@ export default function CardsScreen() {
       )}
 
       <Modal
-        animationType="slide"
+        animationType={modalAnimationType}
         onRequestClose={() => setEditorVisible(false)}
         presentationStyle="pageSheet"
         visible={editorVisible}

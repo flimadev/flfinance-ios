@@ -17,11 +17,13 @@ import { layout, radius, spacing, useTheme } from '@/src/theme';
 import { TransactionFormSheet } from '@/src/features/transactions/TransactionFormSheet';
 import { useTransactions } from '@/src/features/transactions/useTransactions';
 import type { TransactionFormInput } from '@/src/features/transactions/transactionFormTypes';
+import { useModalAnimationType } from '@/src/ui/useModalAnimationType';
 
 type KindFilter = 'all' | Transaction['kind'];
 
 export default function TransactionsScreen() {
   const { colors } = useTheme();
+  const modalAnimationType = useModalAnimationType();
   const {
     accounts,
     categories,
@@ -534,7 +536,7 @@ export default function TransactionsScreen() {
         ) : null}
 
         <Modal
-          animationType="slide"
+          animationType={modalAnimationType}
           onRequestClose={() => setFiltersVisible(false)}
           presentationStyle="pageSheet"
           visible={filtersVisible}
