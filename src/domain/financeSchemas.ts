@@ -124,6 +124,14 @@ export const transactionFiltersSchema = z
     { path: ['toDate'], message: 'O fim do período deve ser posterior ao início.' },
   );
 
+const budgetMonthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+
+export const createBudgetSchema = z.object({
+  categoryId: idSchema,
+  month: budgetMonthSchema,
+  amountCents: moneySchema.positive(),
+});
+
 export type CreateAccountInput = z.input<typeof createAccountSchema>;
 export type UpdateAccountInput = z.input<typeof updateAccountSchema>;
 export type CreateCategoryInput = z.input<typeof createCategorySchema>;
@@ -131,3 +139,4 @@ export type UpdateCategoryInput = z.input<typeof updateCategorySchema>;
 export type CreateTransactionInput = z.input<typeof createTransactionSchema>;
 export type UpdateTransactionInput = z.input<typeof updateTransactionSchema>;
 export type TransactionFilters = z.input<typeof transactionFiltersSchema>;
+export type CreateBudgetInput = z.input<typeof createBudgetSchema>;

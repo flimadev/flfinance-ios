@@ -1,5 +1,13 @@
 import { relations, sql } from 'drizzle-orm';
-import { AnySQLiteColumn, check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import {
+  AnySQLiteColumn,
+  check,
+  index,
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 
 export const accountTypes = ['checking', 'savings', 'cash', 'credit_card', 'investment'] as const;
 
@@ -99,6 +107,26 @@ export const transactions = sqliteTable(
   ],
 );
 
+export const budgets = sqliteTable(
+  'budgets',
+  {
+    id: text('id').primaryKey().notNull(),
+    categoryId: text('category_id')
+      .notNull()
+      .references(() => categories.id, { onDelete: 'restrict' }),
+    month: text('month').notNull(),
+    amountCents: integer('amount_cents').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    check('budgets_positive_amount_check', sql`${table.amountCents} > 0`),
+    check('budgets_month_check', sql`${table.month} glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]'`),
+    uniqueIndex('budgets_category_month_unique').on(table.categoryId, table.month),
+    index('budgets_month_idx').on(table.month),
+  ],
+);
+
 export const appMetadata = sqliteTable('app_metadata', {
   key: text('key').primaryKey().notNull(),
   value: text('value').notNull(),
@@ -134,16 +162,26 @@ export const transactionRelations = relations(transactions, ({ one }) => ({
   }),
 }));
 
+export const budgetRelations = relations(budgets, ({ one }) => ({
+  category: one(categories, {
+    fields: [budgets.categoryId],
+    references: [categories.id],
+  }),
+}));
+
 export const schema = {
   accounts,
   categories,
   transactions,
+  budgets,
   appMetadata,
   accountRelations,
   categoryRelations,
   transactionRelations,
+  budgetRelations,
 };
 
 export type Account = typeof accounts.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
+export type Budget = typeof budgets.$inferSelect;

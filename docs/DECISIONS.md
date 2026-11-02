@@ -1,5 +1,17 @@
 # Decisões de implementação
 
+## Fase 5 — orçamentos
+
+- Existe um orçamento por categoria de despesa e mês (`YYYY-MM`); salvar novamente
+  o mesmo par atualiza o limite existente. Metas de economia foram omitidas por
+  serem opcionais no roadmap.
+- O gasto mensal inclui todas as despesas categorizadas não excluídas, inclusive
+  pendentes; transferências, receitas, despesas excluídas e despesas sem categoria
+  não consomem um orçamento.
+- No iOS, mudanças nas tabelas de orçamentos, categorias e transações notificam a
+  tela por `addDatabaseChangeListener`; na web, a lista é atualizada ao focar a
+  tela, pois o listener do SQLite é nativo.
+
 ## Fase 4 — dashboard
 
 - O saldo atual soma os saldos iniciais das contas não excluídas e somente

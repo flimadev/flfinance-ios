@@ -5,15 +5,18 @@ import { eq } from 'drizzle-orm';
 import migrations from '../drizzle/migrations';
 import {
   accounts as accountsTable,
+  budgets as budgetsTable,
   categories as categoriesTable,
   schema,
   transactions as transactionsTable,
 } from '../src/db/schema';
 import { DomainRuleError, ValidationError } from '../src/domain/errors';
 import { AccountRepository } from '../src/repositories/AccountRepository';
+import { BudgetRepository } from '../src/repositories/BudgetRepository';
 import { CategoryRepository } from '../src/repositories/CategoryRepository';
 import { TransactionRepository } from '../src/repositories/TransactionRepository';
 import { AccountService } from '../src/services/AccountService';
+import { BudgetService } from '../src/services/BudgetService';
 import { CategoryService } from '../src/services/CategoryService';
 import { TransactionService } from '../src/services/TransactionService';
 import { seedDatabase } from '../src/db/seed';
@@ -36,6 +39,7 @@ describe('finance services', () => {
   let database: ReturnType<typeof createTestDatabase>;
   let accounts: AccountService;
   let categories: CategoryService;
+  let budgets: BudgetService;
   let transactionService: TransactionService;
   let nextId: number;
   const now = 1_750_000_000_000;
@@ -48,10 +52,12 @@ describe('finance services', () => {
       now: () => now + nextId,
     };
     const accountRepository = new AccountRepository(database.db);
+    const budgetRepository = new BudgetRepository(database.db);
     const categoryRepository = new CategoryRepository(database.db);
     const transactionRepository = new TransactionRepository(database.db);
     accounts = new AccountService(accountRepository, options);
     categories = new CategoryService(categoryRepository, options);
+    budgets = new BudgetService(budgetRepository, categoryRepository, options);
     transactionService = new TransactionService(
       transactionRepository,
       accountRepository,
@@ -268,5 +274,68 @@ describe('finance services', () => {
     seedDatabase(database.db, seedOptions);
     expect(database.db.select().from(accountsTable).all()).toHaveLength(2);
     expect(database.db.select().from(categoriesTable).all()).toHaveLength(9);
+  });
+
+  it('creates, updates, and lists one budget per expense category and month', async () => {
+    const expenseCategory = await categories.create({
+      name: 'Moradia',
+      kind: 'expense',
+      icon: 'house.fill',
+      color: '#147A58',
+    });
+    const incomeCategory = await categories.create({
+      name: 'Salário',
+      kind: 'income',
+      icon: 'briefcase.fill',
+      color: '#147A58',
+    });
+
+    const first = await budgets.save({
+      categoryId: expenseCategory.id,
+      month: '2025-06',
+      amountCents: 150_000,
+    });
+    const updated = await budgets.save({
+      categoryId: expenseCategory.id,
+      month: '2025-06',
+      amountCents: 175_000,
+    });
+    await budgets.save({
+      categoryId: expenseCategory.id,
+      month: '2025-07',
+      amountCents: 180_000,
+    });
+
+    expect(updated).toMatchObject({
+      id: first.id,
+      amountCents: 175_000,
+      updatedAt: now + 3,
+    });
+    await expect(budgets.listByMonth('2025-06')).resolves.toEqual([updated]);
+    expect(database.db.select().from(budgetsTable).all()).toHaveLength(2);
+    await expect(
+      budgets.save({
+        categoryId: incomeCategory.id,
+        month: '2025-06',
+        amountCents: 100_000,
+      }),
+    ).rejects.toBeInstanceOf(DomainRuleError);
+  });
+
+  it('rejects invalid budget months and non-positive limits', async () => {
+    const category = await categories.create({
+      name: 'Transporte',
+      kind: 'expense',
+      icon: 'car.fill',
+      color: '#147A58',
+    });
+
+    await expect(
+      budgets.save({ categoryId: category.id, month: '2025-13', amountCents: 1_000 }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      budgets.save({ categoryId: category.id, month: '2025-06', amountCents: 0 }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(budgets.listByMonth('2025-6')).rejects.toBeInstanceOf(ValidationError);
   });
 });

@@ -20,7 +20,9 @@ export function getDatabase(): Promise<FinanceDatabase> {
 
 async function openDatabase(): Promise<FinanceDatabase> {
   const SQLite = await import('expo-sqlite');
-  const client = await SQLite.openDatabaseAsync('flfinance.db');
+  const client = await SQLite.openDatabaseAsync('flfinance.db', {
+    enableChangeListener: true,
+  });
   await client.execAsync('PRAGMA foreign_keys = ON;');
   return drizzle(client, { schema });
 }
