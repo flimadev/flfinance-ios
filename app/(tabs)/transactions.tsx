@@ -514,6 +514,7 @@ export default function TransactionsScreen() {
               />
             }
             renderItem={renderRow}
+            showsVerticalScrollIndicator={false}
           />
         )}
 

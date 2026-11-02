@@ -15,15 +15,20 @@ jest.mock('@shopify/flash-list', () => ({
     renderItem,
     ListHeaderComponent,
     ListEmptyComponent,
+    showsVerticalScrollIndicator,
   }: {
     data: { key: string }[];
     renderItem: (args: { item: { key: string } }) => ReactNode;
     ListHeaderComponent: ReactNode;
     ListEmptyComponent: ReactNode;
+    showsVerticalScrollIndicator: boolean;
   }) =>
     mockCreateElement(
       mockView,
-      null,
+      {
+        testID: 'transactions-list',
+        accessibilityLabel: String(showsVerticalScrollIndicator),
+      },
       ListHeaderComponent,
       data.length
         ? data.map((item) => mockCreateElement(mockView, { key: item.key }, renderItem({ item })))
@@ -113,6 +118,7 @@ describe('TransactionsScreen', () => {
     expect(screen.getByLabelText('Movimentações')).toBeTruthy();
     expect(screen.getByText('Compra no mercado')).toBeTruthy();
     expect(screen.getByText('Mercado · Conta corrente')).toBeTruthy();
+    expect(screen.getByTestId('transactions-list').props.accessibilityLabel).toBe('false');
   });
 
   it('opens category filters and applies the selected category', async () => {
