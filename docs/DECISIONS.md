@@ -1,5 +1,13 @@
 # Decisões de implementação
 
+## Fase 4 — dashboard
+
+- O saldo atual soma os saldos iniciais das contas não excluídas e somente
+  receitas/despesas pagas até hoje; transferências não alteram o total geral.
+- Receitas e despesas do período incluem lançamentos pendentes para representar
+  os compromissos daquele intervalo. O gráfico agrupa categorias além das cinco
+  maiores em “Outras categorias”; lançamentos sem categoria aparecem à parte.
+
 ## Fase 2 — banco e camada de dados
 
 - Services lançam `ValidationError` com issues do Zod, `NotFoundError` ou
