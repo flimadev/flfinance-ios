@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { AppState, Platform, StyleSheet, View } from 'react-native';
+import { Alert, AppState, Platform, StyleSheet, View } from 'react-native';
 
 import { ptBR } from '@/src/i18n/pt-BR';
 import { spacing } from '@/src/theme';
@@ -14,6 +14,7 @@ export function AppLockGate({ children }: PropsWithChildren) {
     error: preferencesError,
     reloadPreferences,
     resetPreferences,
+    updatePreferences,
   } = useAppPreferences();
   const [unlocked, setUnlocked] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -45,6 +46,22 @@ export function AppLockGate({ children }: PropsWithChildren) {
       attemptActive.current = false;
     }
   }, []);
+
+  function confirmDisableBiometricLock() {
+    Alert.alert(ptBR.settings.disableBiometricTitle, ptBR.settings.disableBiometricDescription, [
+      { text: ptBR.settings.cancel, style: 'cancel' },
+      {
+        text: ptBR.settings.disableBiometricLock,
+        style: 'destructive',
+        onPress: () => {
+          void updatePreferences({ biometricLock: false }).catch((error: unknown) => {
+            console.error('Não foi possível desativar o bloqueio biométrico.', error);
+            setAuthError(ptBR.settings.biometricEnableError);
+          });
+        },
+      },
+    ]);
+  }
 
   useEffect(() => {
     if (ready && appActive && !preferencesError && preferences.biometricLock && !unlocked) {
@@ -113,12 +130,19 @@ export function AppLockGate({ children }: PropsWithChildren) {
               </Button>
             </>
           ) : preferences.biometricLock ? (
-            <Button
-              onPress={() => void authenticate()}
-              accessibilityHint={ptBR.settings.unlockDescription}
-            >
-              {ptBR.settings.unlock}
-            </Button>
+            <>
+              <Button
+                onPress={() => void authenticate()}
+                accessibilityHint={ptBR.settings.unlockDescription}
+              >
+                {ptBR.settings.unlock}
+              </Button>
+              {authError ? (
+                <Button haptic={false} variant="secondary" onPress={confirmDisableBiometricLock}>
+                  {ptBR.settings.disableBiometricLock}
+                </Button>
+              ) : null}
+            </>
           ) : null}
         </View>
       </Screen>

@@ -134,6 +134,8 @@ export const ptBR = {
     biometricEnableError: 'Não foi possível ativar a proteção biométrica.',
     biometricPrompt: 'Desbloqueie seus dados financeiros',
     authenticationRequired: 'Autentique para acessar seus dados financeiros.',
+    biometricBuildRequired:
+      'No iOS, o Face ID requer um development build instalado. Ele não funciona no Expo Go.',
     appLocked: 'Seus dados estão protegidos',
     unlockDescription: 'Use a biometria para continuar.',
     unlock: 'Desbloquear',
@@ -141,6 +143,10 @@ export const ptBR = {
     preferencesErrorTitle: 'Não foi possível ler os ajustes',
     preferencesReadError: 'As preferências seguras não puderam ser lidas.',
     resetPreferences: 'Redefinir ajustes seguros',
+    disableBiometricTitle: 'Desativar bloqueio biométrico?',
+    disableBiometricDescription:
+      'O app será desbloqueado sem biometria. Você pode ativá-la novamente nos Ajustes.',
+    disableBiometricLock: 'Desativar bloqueio',
     preferencesReset: 'Ajustes redefinidos. O bloqueio biométrico foi desativado.',
     previousDay: 'Diminuir dia de início do mês',
     nextDay: 'Aumentar dia de início do mês',

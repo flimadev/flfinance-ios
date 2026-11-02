@@ -264,6 +264,11 @@ export default function SettingsScreen() {
             value={preferences.biometricLock}
           />
         </View>
+        {Platform.OS === 'ios' ? (
+          <Text tone="secondary" variant="caption">
+            {ptBR.settings.biometricBuildRequired}
+          </Text>
+        ) : null}
       </Card>
 
       <Card style={styles.section}>
