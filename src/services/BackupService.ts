@@ -28,7 +28,7 @@ export class BackupService<TResult> {
     }
     const payload = backupSchema.parse({
       format: 'flfinance-backup',
-      version: 2,
+      version: 3,
       exportedAt: now,
       data: { ...data, attachments },
     });

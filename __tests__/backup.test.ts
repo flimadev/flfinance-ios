@@ -69,8 +69,22 @@ describe('backup validation and export', () => {
     };
 
     expect(parseBackup(JSON.stringify(legacy))).toMatchObject({
-      version: 2,
+      version: 3,
       data: { tags: [], transactionTags: [], attachments: [] },
+    });
+  });
+
+  it('upgrades valid version 2 backups with unreconciled transactions', () => {
+    const versionTwo = {
+      format: 'flfinance-backup',
+      version: 2,
+      exportedAt: now,
+      data: { ...emptyData },
+    };
+
+    expect(parseBackup(JSON.stringify(versionTwo))).toMatchObject({
+      version: 3,
+      data: { transactions: [], tags: [], transactionTags: [], attachments: [] },
     });
   });
 
@@ -112,6 +126,7 @@ describe('backup validation and export', () => {
           invoiceId: null,
           recurringId: null,
           isPaid: true,
+          reconciledAt: null,
           deletedAt: null,
           createdAt: now,
           updatedAt: now,

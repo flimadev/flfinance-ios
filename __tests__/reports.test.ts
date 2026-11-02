@@ -61,6 +61,7 @@ function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
     createdAt: 1,
     updatedAt: 1,
     ...overrides,
+    reconciledAt: overrides.reconciledAt ?? null,
   };
 }
 

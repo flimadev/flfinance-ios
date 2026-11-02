@@ -54,6 +54,7 @@ function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
     invoiceId: null,
     recurringId: null,
     isPaid: true,
+    reconciledAt: null,
     deletedAt: null,
     createdAt: 1,
     updatedAt: 1,

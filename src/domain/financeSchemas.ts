@@ -130,6 +130,8 @@ export const createTransactionSchema = transactionFieldsSchema.superRefine(
   },
 );
 
+export const importTransactionsSchema = z.array(createTransactionSchema).min(1).max(10_000);
+
 export const updateTransactionSchema = transactionFieldsSchema
   .partial()
   .refine((value) => Object.keys(value).length > 0);

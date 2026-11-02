@@ -96,6 +96,7 @@ export const transactions = sqliteTable(
     invoiceId: text('invoice_id'),
     recurringId: text('recurring_id'),
     isPaid: integer('is_paid', { mode: 'boolean' }).notNull().default(true),
+    reconciledAt: integer('reconciled_at'),
     deletedAt: integer('deleted_at'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),

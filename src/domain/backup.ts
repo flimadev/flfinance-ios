@@ -175,11 +175,20 @@ const attachmentSchema = z
   })
   .strict();
 
-const backupDataSchema = backupDataV1Schema
+const backupDataV2Schema = backupDataV1Schema
   .extend({
     tags: z.array(tagSchema).max(10_000),
     transactionTags: z.array(transactionTagSchema).max(500_000),
     attachments: z.array(attachmentSchema).max(10_000),
+  })
+  .strict();
+
+const transactionSchemaV3 = transactionSchema.extend({
+  reconciledAt: nullableTimestamp,
+});
+const backupDataSchema = backupDataV2Schema
+  .extend({
+    transactions: z.array(transactionSchemaV3).max(500_000),
   })
   .strict();
 
@@ -192,10 +201,19 @@ const legacyBackupSchema = z
   })
   .strict();
 
-export const backupSchema = z
+const backupSchemaV2 = z
   .object({
     format: z.literal('flfinance-backup'),
     version: z.literal(2),
+    exportedAt: timestamp,
+    data: backupDataV2Schema,
+  })
+  .strict();
+
+export const backupSchema = z
+  .object({
+    format: z.literal('flfinance-backup'),
+    version: z.literal(3),
     exportedAt: timestamp,
     data: backupDataSchema,
   })
@@ -241,16 +259,35 @@ export function parseBackup(text: string): BackupPayload {
   if (parsed.success) {
     return parsed.data;
   }
+  const versionTwo = backupSchemaV2.safeParse(value);
+  if (versionTwo.success) {
+    return {
+      format: versionTwo.data.format,
+      version: 3,
+      exportedAt: versionTwo.data.exportedAt,
+      data: {
+        ...versionTwo.data.data,
+        transactions: versionTwo.data.data.transactions.map((transaction) => ({
+          ...transaction,
+          reconciledAt: null,
+        })),
+      },
+    };
+  }
   const legacy = legacyBackupSchema.safeParse(value);
   if (!legacy.success) {
     throw new Error('invalid-backup');
   }
   return {
     format: legacy.data.format,
-    version: 2,
+    version: 3,
     exportedAt: legacy.data.exportedAt,
     data: {
       ...legacy.data.data,
+      transactions: legacy.data.data.transactions.map((transaction) => ({
+        ...transaction,
+        reconciledAt: null,
+      })),
       tags: [],
       transactionTags: [],
       attachments: [],

@@ -16,6 +16,7 @@ import { AttachmentService } from '@/src/services/AttachmentService';
 import { ExpoAttachmentFileStore } from '@/src/services/AttachmentFileStore';
 import { InvoiceService } from '@/src/services/InvoiceService';
 import { RecurringService } from '@/src/services/RecurringService';
+import { ReconciliationService } from '@/src/services/ReconciliationService';
 import { getDatabase } from '@/src/db/client';
 
 export async function getTransactionServices() {
@@ -37,6 +38,7 @@ export async function getTransactionServices() {
     categoryService: new CategoryService(categories),
     invoiceService: new InvoiceService(invoices, accounts, transactions),
     recurringService: new RecurringService(recurringRules, accounts, categories),
+    reconciliationService: new ReconciliationService(transactions),
     transactionService: new TransactionService(transactions, accounts, categories),
     tagService: new TagService(tags),
     attachmentService: new AttachmentService(attachments, attachmentFiles),

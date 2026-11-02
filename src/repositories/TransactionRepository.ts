@@ -8,6 +8,7 @@ type TransactionInsert = typeof transactions.$inferInsert;
 
 export interface TransactionRepositoryContract {
   create(transaction: TransactionInsert): Promise<Transaction>;
+  createMany(transactions: TransactionInsert[]): Promise<Transaction[]>;
   findById(id: string): Promise<Transaction | undefined>;
   list(filters: TransactionFilters): Promise<Transaction[]>;
   update(id: string, values: Partial<TransactionInsert>): Promise<Transaction | undefined>;
@@ -23,8 +24,16 @@ export class TransactionRepository<TResult> implements TransactionRepositoryCont
     if (!created) {
       throw new Error('O SQLite não retornou a transação recém-criada.');
     }
-
     return created;
+  }
+
+  async createMany(values: TransactionInsert[]): Promise<Transaction[]> {
+    if (values.length === 0) {
+      return [];
+    }
+    return this.db.transaction((transaction) =>
+      transaction.insert(transactions).values(values).returning(),
+    );
   }
 
   async findById(id: string): Promise<Transaction | undefined> {

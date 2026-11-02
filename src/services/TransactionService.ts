@@ -3,6 +3,7 @@ import { DomainRuleError, NotFoundError } from '@/src/domain/errors';
 import { ptBR } from '@/src/i18n/pt-BR';
 import {
   createTransactionSchema,
+  importTransactionsSchema,
   transactionFiltersSchema,
   updateTransactionSchema,
   type CreateTransactionInput,
@@ -38,6 +39,57 @@ export class TransactionService {
       createdAt: now,
       updatedAt: now,
     });
+  }
+
+  async importMany(inputs: CreateTransactionInput[]): Promise<{
+    imported: Transaction[];
+    skippedDuplicates: number;
+  }> {
+    const values = parseInput(importTransactionsSchema, inputs);
+    for (const value of values) {
+      await this.validateReferences(value);
+    }
+
+    const existing = await this.repository.list({});
+    const seen = new Set(
+      existing.map((transaction) =>
+        getImportFingerprint(
+          transaction.accountId,
+          transaction.date,
+          transaction.kind,
+          transaction.amountCents,
+          transaction.description,
+        ),
+      ),
+    );
+    const uniqueValues: typeof values = [];
+    let skippedDuplicates = 0;
+    for (const value of values) {
+      const fingerprint = getImportFingerprint(
+        value.accountId,
+        value.date,
+        value.kind,
+        value.amountCents,
+        value.description,
+      );
+      if (seen.has(fingerprint)) {
+        skippedDuplicates += 1;
+      } else {
+        seen.add(fingerprint);
+        uniqueValues.push(value);
+      }
+    }
+
+    const now = getServiceTimestamp(this.options);
+    const inserted = await this.repository.createMany(
+      uniqueValues.map((value) => ({
+        ...value,
+        id: createServiceId(this.options),
+        createdAt: now,
+        updatedAt: now,
+      })),
+    );
+    return { imported: inserted, skippedDuplicates };
   }
 
   async list(filters: TransactionFilters = {}): Promise<Transaction[]> {
@@ -130,4 +182,20 @@ export class TransactionService {
       }
     }
   }
+}
+
+function getImportFingerprint(
+  accountId: string,
+  date: string,
+  kind: Transaction['kind'],
+  amountCents: number,
+  description: string,
+): string {
+  return JSON.stringify([
+    accountId,
+    date,
+    kind,
+    amountCents,
+    description.trim().toLocaleLowerCase('pt-BR'),
+  ]);
 }
