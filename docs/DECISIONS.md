@@ -1,5 +1,17 @@
 # Decisões de implementação
 
+## Dívidas
+
+- A seção de dívidas é uma visão consolidada, sem criar um cadastro financeiro
+  paralelo: reúne lançamentos de despesa não pagos, faturas abertas e regras
+  recorrentes mensais já existentes.
+- Compras de cartão são representadas pelo total da fatura, não novamente pelos
+  lançamentos individuais, para evitar contagem duplicada. Regras recorrentes
+  futuras aparecem como previsão e não entram no saldo em aberto até serem
+  geradas como lançamentos.
+- O cadastro de recorrências continua usando o fluxo existente de novo
+  lançamento; a seção de dívidas oferece acompanhamento e pagamento.
+
 ## Fase 7 — segurança e backup
 
 - O backup é JSON versionado e validado (`flfinance-backup`, versão 1), incluindo

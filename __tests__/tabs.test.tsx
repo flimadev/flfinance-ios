@@ -50,6 +50,7 @@ describe('HomeScreen', () => {
     expect(screen.getByText('Saldo total')).toBeTruthy();
     expect(screen.getByText('Gastos por categoria')).toBeTruthy();
     expect(screen.getByText('Últimos lançamentos')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Ver dívidas' })).toBeTruthy();
     expect(screen.getByText('Nenhum lançamento neste período.')).toBeTruthy();
   });
 });

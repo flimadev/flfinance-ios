@@ -206,7 +206,7 @@ describe('credit card and recurring services', () => {
       icon: 'building.columns.fill',
     });
     const category = await createExpenseCategory();
-    await recurring.createRule({
+    const rule = await recurring.createRule({
       accountId: account.id,
       categoryId: category.id,
       kind: 'expense',
@@ -215,6 +215,7 @@ describe('credit card and recurring services', () => {
       startDate: '2024-01-31',
       frequency: 'monthly',
     });
+    await expect(recurring.listActiveRules()).resolves.toEqual([rule]);
 
     await expect(recurring.generateDue('2024-04-30')).resolves.toBe(4);
     await expect(recurring.generateDue('2024-04-30')).resolves.toBe(0);

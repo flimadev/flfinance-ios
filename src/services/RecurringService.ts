@@ -59,6 +59,10 @@ export class RecurringService {
     });
   }
 
+  async listActiveRules(): Promise<RecurringRule[]> {
+    return this.repository.listActive();
+  }
+
   async generateDue(throughDate: string): Promise<number> {
     const date = parseInput(createRecurringRuleSchema.shape.startDate, throughDate);
     const rules = await this.repository.listActive();

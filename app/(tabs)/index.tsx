@@ -148,6 +148,11 @@ export default function HomeScreen() {
     <Screen contentContainerStyle={styles.content} scrollable testID="dashboard-screen">
       <View style={styles.header}>
         <Text variant="title">{ptBR.dashboard.title}</Text>
+        <Link asChild href="/debts">
+          <Button haptic={false} variant="secondary">
+            {ptBR.debts.open}
+          </Button>
+        </Link>
       </View>
 
       <View
